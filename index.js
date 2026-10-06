@@ -74,7 +74,7 @@ const allowedOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "ht
 
 app.use(
   cors({
-    origin: allowedOrigins
+    origin: allowedOrigins.includes("*") ? "*" : allowedOrigins
   })
 );
 
