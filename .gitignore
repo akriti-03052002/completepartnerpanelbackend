@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# secrets — never commit; set these in Render's Environment settings
+.env
+.env.*
+!.env.example
+
+# runtime output
+logs/
+*.log
+coverage/
+
+# uploads are stored in Cloudinary; nothing should ever land here
+uploads/
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
