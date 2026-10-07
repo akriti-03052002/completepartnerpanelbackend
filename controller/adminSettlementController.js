@@ -181,12 +181,41 @@ const listSettlements = async (req, res) => {
     }
   }
 
-  const settlements = await PartnerSettlement.find(filter)
-    .sort({ createdAt: -1 })
-    .populate("partnerId", "partnerCode partnerType legalEntity.businessName")
-    .lean();
-
-  return res.json({ success: true, data: await attachBills(await attachMaskedBankAccounts(settlements)) });
+  const pagination = req.query.page !== undefined ? require("../utils/pagination")(req.query) : null;
+  const query = PartnerSettlement.find(filter).sort({ createdAt: -1 });
+  if (pagination) query.skip(pagination.skip).limit(pagination.limit);
+  const settlements = await query.populate("partnerId", "partnerCode partnerType legalEntity.businessName").lean();
+  const payload = { success: true, data: await attachBills(await attachMaskedBankAccounts(settlements)) };
+  if (pagination) {
+    const total = await PartnerSettlement.countDocuments(filter);
+    const match = { ...filter };
+    if (typeof match.partnerId === "string") match.partnerId = new mongoose.Types.ObjectId(match.partnerId);
+    const day = new Date(req.query.todayStart);
+    const start = Number.isNaN(day.getTime()) ? new Date(new Date().setUTCHours(0, 0, 0, 0)) : day;
+    const end = new Date(start.getTime() + 86400000);
+    const [summary] = await PartnerSettlement.aggregate([
+      { $match: match },
+      { $lookup: { from: "partners", localField: "partnerId", foreignField: "_id", as: "partner" } },
+      { $match: { "partner.0": { $exists: true } } },
+      { $group: { _id: null,
+        totalOwed: { $sum: { $cond: [{ $in: ["$status", ["draft", "pending_approval", "approved", "processing", "on_hold"]] }, "$amount.net", 0] } },
+        pendingCount: { $sum: { $cond: [{ $in: ["$status", ["draft", "pending_approval", "approved"]] }, 1, 0] } },
+        pendingAmount: { $sum: { $cond: [{ $in: ["$status", ["draft", "pending_approval", "approved"]] }, "$amount.net", 0] } },
+        today: { $sum: { $cond: [{ $and: [{ $gte: ["$payment.paidAt", start] }, { $lt: ["$payment.paidAt", end] }] }, "$amount.net", 0] } }
+      } }
+    ]);
+    payload.summary = summary || { totalOwed: 0, pendingCount: 0, pendingAmount: 0, today: 0 };
+    const [latestPaid] = await PartnerSettlement.aggregate([
+      { $match: { ...match, status: "paid" } },
+      { $lookup: { from: "partners", localField: "partnerId", foreignField: "_id", as: "partner" } },
+      { $match: { "partner.0": { $exists: true } } },
+      { $sort: { "payment.paidAt": -1 } }, { $limit: 1 },
+      { $project: { amount: 1, payment: 1 } }
+    ]);
+    payload.summary.previousPayout = latestPaid || null;
+    payload.pagination = { page: pagination.page, pages: Math.ceil(total / pagination.limit), total };
+  }
+  return res.json(payload);
 };
 
 /* Bundles a partner's approved commissions into a draft settlement batch.

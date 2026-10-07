@@ -116,15 +116,16 @@ const getDashboard = async (req, res) => {
       PartnerActivity.find({ partnerId: partner._id }).sort({ createdAt: -1 }).limit(10),
       PartnerNotification.countDocuments({ partnerId: partner._id, read: false }),
       PartnerCommission.aggregate([
-        { $match: { partnerId: partner._id } },
+        { $match: { partnerId: partner._id, "settlement.status": { $ne: "cancelled" } } },
         {
           $group: {
             _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
             total: { $sum: "$calculation.netCommission" }
           }
         },
-        { $sort: { "_id.year": 1, "_id.month": 1 } },
-        { $limit: 12 }
+        { $sort: { "_id.year": -1, "_id.month": -1 } },
+        { $limit: 12 },
+        { $sort: { "_id.year": 1, "_id.month": 1 } }
       ]),
       PartnerDocument.find({ partnerId: partner._id }),
       PartnerBankAccount.findOne({ partnerId: partner._id }),

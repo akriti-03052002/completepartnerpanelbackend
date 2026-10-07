@@ -14,8 +14,13 @@ const { assignReferralCode } = require("../services/vendorActivation");
 ============================================================ */
 
 const listCustomers = asyncHandler(async (req, res) => {
-  const customers = await ResellerCustomer.find({ partnerId: req.partner._id }).sort({ createdAt: -1 });
-  return res.json({ success: true, data: customers });
+  const filter = { partnerId: req.partner._id };
+  const pagination = req.query.page !== undefined ? require("../utils/pagination")(req.query) : null;
+  const query = ResellerCustomer.find(filter).sort({ createdAt: -1 });
+  if (pagination) query.skip(pagination.skip).limit(pagination.limit);
+  const customers = await query;
+  const total = pagination ? await ResellerCustomer.countDocuments(filter) : customers.length;
+  return res.json({ success: true, data: customers, ...(pagination ? { pagination: { page: pagination.page, pages: Math.ceil(total / pagination.limit), total } } : {}) });
 });
 
 const getResellerReferral = asyncHandler(async (req, res) => {

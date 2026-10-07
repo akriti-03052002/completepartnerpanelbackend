@@ -1695,3 +1695,91 @@ test("reseller security: reset revokes sessions, suspended accounts lose access,
   }
   assert.fail("reseller login must be rate limited");
 });
+
+
+test("commission pagination returns distinct pages and complete totals", async () => {
+  const { PartnerCommission: Commission } = require("../models/Index");
+  const total = await Commission.countDocuments({});
+  const first = expectStatus(await api().get("/api/admin/commissions?page=1&limit=2").set(admin()), 200, "first commission page");
+  const second = expectStatus(await api().get("/api/admin/commissions?page=2&limit=2").set(admin()), 200, "second commission page");
+  assert.equal(first.data.length, 2);
+  assert.equal(first.pagination.total, total);
+  assert.equal(first.pagination.pages, Math.ceil(total / 2));
+  assert.ok(second.data.every(row => !first.data.some(other => other._id === row._id)));
+});
+
+test("confirmed customer payments succeed while missing commission terms await recovery", async () => {
+  const Assignment = require("../models/PartnerCommissionAssignment");
+  const Payment = require("../models/CustomerPayment");
+  const token = state.recoveryScenario.token;
+  const checkout = expectStatus(await api().post("/api/customer/subscription/checkout").set(as(token)).send({ plan: "basic", screenCount: 5, durationMonths: 1 }), 200, "new checkout");
+  const payment = payOrder(checkout.data.orderId, "upi", "");
+  const assignments = await Assignment.find({ partnerId: state.partners.vendor.id, status: "active" });
+  await Assignment.updateMany({ _id: { $in: assignments.map(a => a._id) } }, { $set: { status: "inactive" } });
+  try {
+    const result = expectStatus(await api().post("/api/customer/subscription/verify").set(as(token)).send({ customerPaymentId: checkout.data.customerPaymentId, ...payment }), 200, "captured payment still succeeds");
+    assert.equal(result.data.subscription.status, "active");
+    const committed = await Payment.findById(checkout.data.customerPaymentId);
+    assert.equal(committed.status, "paid");
+    assert.equal(committed.commissionGenerated, false);
+  } finally {
+    await Assignment.updateMany({ _id: { $in: assignments.map(a => a._id) } }, { $set: { status: "active" } });
+    await require("../services/customerPaymentFulfillment").recoverPendingCustomerCommissions();
+  }
+  assert.equal((await Payment.findById(checkout.data.customerPaymentId)).commissionGenerated, true);
+});
+
+
+test("HttpOnly browser sessions authenticate, reject CSRF and clear on logout", async () => {
+  const agent = request.agent(app);
+  const origin = process.env.CLIENT_URL;
+  const login = await agent.post("/api/admin/auth/login").set("Origin", origin).set("X-Session-Mode", "cookie").set("X-Forwarded-For", "192.0.2.200").send({ email: "admin@example.com", password: "adminpass123" });
+  assert.equal(login.status, 200);
+  assert.equal(login.body.token, undefined, "browser response does not expose JWT");
+  assert.ok(login.headers["set-cookie"].some(cookie => cookie.includes("HttpOnly") && cookie.includes("SameSite=Lax") && cookie.includes("Path=/api")));
+  expectStatus(await agent.get("/api/admin/stats/dashboard"), 200, "cookie authenticates");
+  expectStatus(await agent.post("/api/session/logout").set("Origin", "https://attacker.example").send({ portal: "admin" }), 403, "cross-origin logout rejected");
+  expectStatus(await agent.post("/api/session/logout").send({ portal: "admin" }), 403, "missing origin rejected");
+  expectStatus(await agent.post("/api/session/logout").set("Origin", origin).send({ portal: "admin" }), 200, "logout clears cookie");
+  expectStatus(await agent.get("/api/admin/stats/dashboard"), 401, "logged-out cookie cannot authenticate");
+});
+
+test("partner customer lists paginate without changing legacy consumers", async () => {
+  for (const [type, route] of [["vendor", "/api/partner/customers"], ["reseller", "/api/partner/reseller/customers"]]) {
+    const legacy = expectStatus(await api().get(route).set(as(state.partners[type].token)), 200, "legacy customer list");
+    const page = expectStatus(await api().get(route).query({ page: 1, limit: 1 }).set(as(state.partners[type].token)), 200, "bounded customer list");
+    assert.equal(page.pagination.total, legacy.data.length);
+    assert.ok(page.data.length <= 1);
+    assert.equal(page.pagination.pages, legacy.data.length);
+  }
+});
+
+
+test("settlement pagination preserves all-record summary amounts", async () => {
+  const { PartnerSettlement } = require("../models/Index");
+  const total = await PartnerSettlement.countDocuments({});
+  const page = expectStatus(await api().get("/api/admin/settlements").query({ page: 1, limit: 1 }).set(admin()), 200, "settlement page");
+  assert.equal(page.pagination.total, total);
+  assert.ok(page.data.length <= 1);
+  assert.equal(typeof page.summary.totalOwed, "number");
+});
+
+
+test("partner and both customer portals use separate HttpOnly browser sessions", async () => {
+  const origin = process.env.CLIENT_URL;
+  for (const [portal, route, profile, email, password] of [
+    ["partner", "/api/partner/auth/login", "/api/partner/dashboard", state.partners.vendor.email, "password123"],
+    ["customer", "/api/public/customers/login", "/api/customer/profile", "direct@example.com", "customerpass2"],
+    ["portal", "/api/public/reseller-customers/login", "/api/customer-portal/me", "portal@example.com", "updatedpassword123"]
+  ]) {
+    const agent = request.agent(app);
+    const response = await agent.post(route).set("Origin", origin).set("X-Session-Mode", "cookie").set("X-Forwarded-For", "192.0.2.201").send({ email, password });
+    assert.equal(response.status, 200, JSON.stringify(response.body));
+    assert.equal(response.body.token || response.body.data?.token, undefined);
+    assert.ok(response.headers["set-cookie"].some(c => c.startsWith(`spotx_${portal}=`) && c.includes("HttpOnly")));
+    expectStatus(await agent.get(profile), 200, portal + " cookie authenticates");
+    expectStatus(await agent.get("/api/admin/stats/dashboard"), 401, portal + " cookie cannot authenticate admin");
+    expectStatus(await agent.post("/api/session/logout").set("Origin", origin).send({ portal }), 200, portal + " logout");
+    expectStatus(await agent.get(profile), 401, portal + " logout blocks access");
+  }
+});

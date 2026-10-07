@@ -387,7 +387,17 @@ const verifyCheckoutPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: "This payment couldn't be confirmed as captured for the correct amount." });
     }
 
-    const result = await applyPaidCustomerPayment(customerPayment._id, { razorpayPaymentId: paymentId, method: payment.method }, { req });
+    let result;
+    try {
+      result = await applyPaidCustomerPayment(customerPayment._id, { razorpayPaymentId: paymentId, method: payment.method }, { req });
+    } catch (fulfillmentError) {
+      const committed = await CustomerPayment.findOne({ _id: customerPayment._id, status: "paid", "razorpay.paymentId": paymentId });
+      if (!committed) throw fulfillmentError;
+      const paidCustomer = await req.customer.constructor.findById(committed.customerId);
+      if (!paidCustomer) throw fulfillmentError;
+      console.error("Commission will be recovered for confirmed payment:", String(committed._id));
+      return res.json({ success: true, message: "Payment confirmed and subscription updated.", data: { subscription: paidCustomer.subscription, transactionId: paymentId, amountPaid: committed.amount.total } });
+    }
 
     if (!result || !result.customer) {
       return res.json({ success: true, message: "Payment already confirmed.", data: { subscription: req.customer.subscription } });

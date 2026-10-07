@@ -1,3 +1,4 @@
+const { issueSession } = require("../utils/browserSession");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { User } = require("../models/Index");
@@ -43,7 +44,7 @@ const loginAdmin = async (req, res) => {
     return res.json({
       success: true,
       message: "Login successful.",
-      token,
+      token: issueSession(req, res, "admin", token),
       user: { id: user._id, name: user.name, email: user.email, role: user.role }
     });
   } catch (error) {

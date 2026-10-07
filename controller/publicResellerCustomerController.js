@@ -1,3 +1,4 @@
+const { issueSession } = require("../utils/browserSession");
 const asyncHandler = require("express-async-handler");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
@@ -168,7 +169,7 @@ const verifyAndSetPassword = asyncHandler(async (req, res) => {
   return res.json({
       success: true,
       message: "Email verified and password set — you can log in now.",
-      data: { token: generateCustomerToken(updated) }
+      data: { token: issueSession(req, res, "portal", generateCustomerToken(updated)) }
     });
 });
 
@@ -202,7 +203,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
 
   return res.json({
       success: true,
-      data: { token: generateCustomerToken(customer) }
+      data: { token: issueSession(req, res, "portal", generateCustomerToken(customer)) }
     });
 });
 

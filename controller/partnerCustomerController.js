@@ -12,9 +12,14 @@ const { sendCustomerSetPasswordEmail } = require("../services/customerAuth");
 ============================================================ */
 
 const listCustomers = async (req, res) => {
-  const customers = await Customer.find({ partnerId: req.partner._id }).sort({ createdAt: -1 });
+  const filter = { partnerId: req.partner._id };
+  const pagination = req.query.page !== undefined ? require("../utils/pagination")(req.query) : null;
+  const query = Customer.find(filter).sort({ createdAt: -1 });
+  if (pagination) query.skip(pagination.skip).limit(pagination.limit);
+  const customers = await query;
+  const total = pagination ? await Customer.countDocuments(filter) : customers.length;
 
-  return res.json({ success: true, data: customers });
+  return res.json({ success: true, data: customers, ...(pagination ? { pagination: { page: pagination.page, pages: Math.ceil(total / pagination.limit), total } } : {}) });
 };
 
 const getCustomer = async (req, res) => {

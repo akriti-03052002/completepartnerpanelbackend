@@ -74,7 +74,8 @@ const allowedOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "ht
 
 app.use(
   cors({
-    origin: allowedOrigins.includes("*") ? "*" : allowedOrigins
+    credentials: true,
+    origin: allowedOrigins.includes("*") ? (process.env.CLIENT_URL ? [process.env.CLIENT_URL.replace(/\/+$/, "")] : []) : allowedOrigins
   })
 );
 
@@ -84,6 +85,8 @@ app.use(
 app.post("/api/webhooks/razorpay", express.raw({ type: "application/json" }), handleRazorpayWebhook);
 
 app.use(express.json());
+app.use(require("./utils/browserSession").browserSession);
+app.post("/api/session/logout", require("./utils/browserSession").logout);
 
 // One line per request to the console and backend/logs/<date>.log.
 app.use((req, res, next) => {

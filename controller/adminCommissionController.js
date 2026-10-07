@@ -39,11 +39,16 @@ const listCommissions = async (req, res) => {
     filter.partnerId = partnerId || { $in: matchingPartnerIds };
   }
 
-  const commissions = await PartnerCommission.find(filter)
+  const pagination = req.query.page !== undefined ? require("../utils/pagination")(req.query) : null;
+  const query = PartnerCommission.find(filter)
+    .sort({ createdAt: -1 });
+  if (pagination) query.skip(pagination.skip).limit(pagination.limit);
+  const commissions = await query
     .sort({ createdAt: -1 })
     .populate("partnerId", "partnerCode partnerType legalEntity.businessName");
 
-  return res.json({ success: true, data: commissions });
+  const total = pagination ? await PartnerCommission.countDocuments(filter) : commissions.length;
+  return res.json({ success: true, data: commissions, ...(pagination ? { pagination: { page: pagination.page, pages: Math.ceil(total / pagination.limit), total } } : {}) });
 };
 
 const approveCommission = async (req, res) => {

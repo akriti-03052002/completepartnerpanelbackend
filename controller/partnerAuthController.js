@@ -1,3 +1,4 @@
+const { issueSession } = require("../utils/browserSession");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
@@ -334,7 +335,7 @@ const registerPartner = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Partner registration successful.",
-      token,
+      token: issueSession(req, res, "partner", token),
       partner: {
         id: partner._id,
         partnerCode: partner.partnerCode,
@@ -420,7 +421,7 @@ const loginPartner = async (req, res) => {
     return res.json({
       success: true,
       message: "Login successful.",
-      token,
+      token: issueSession(req, res, "partner", token),
       partner: {
         id: partner._id,
         partnerCode: partner.partnerCode,

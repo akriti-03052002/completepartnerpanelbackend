@@ -1,3 +1,4 @@
+const { issueSession } = require("../utils/browserSession");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
@@ -185,7 +186,7 @@ const loginCustomer = async (req, res) => {
       success: true,
       message: "Login successful.",
       data: {
-        token: generateToken(customer),
+        token: issueSession(req, res, "customer", generateToken(customer)),
         customer: {
           id: customer._id,
           companyName: customer.companyName,
