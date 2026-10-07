@@ -6,10 +6,14 @@ const { getRequiredDocumentTypes, getNotApplicableDocumentTypes, isProfileComple
 ============================================================ */
 
 const getProfile = async (req, res) => {
+  const partner = req.partner.toObject();
+  if (req.partnerUser.role !== "owner" && !req.partnerUser.permissions.includes("commissions:view")) {
+    for (const key of ["totalCommission", "pendingCommission", "approvedCommission", "paidCommission"]) delete partner.stats[key];
+  }
   return res.json({
     success: true,
     data: {
-      partner: req.partner,
+      partner,
       user: req.partnerUser,
       requiredDocumentTypes: getRequiredDocumentTypes(req.partner.partnerType),
       notApplicableDocumentTypes: getNotApplicableDocumentTypes(req.partner.partnerType),

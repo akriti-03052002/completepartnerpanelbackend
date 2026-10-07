@@ -17,7 +17,7 @@ const requirePermission = (permission) => (req, res, next) => {
     return next();
   }
 
-  if (!partnerUser.permissions.includes(permission)) {
+  if (require("../config/roles").OWNER_ONLY_PERMISSIONS.includes(permission) || !partnerUser.permissions.includes(permission)) {
     return res.status(403).json({
       success: false,
       message: "You don't have permission to do that."

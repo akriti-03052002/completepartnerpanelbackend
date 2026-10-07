@@ -1785,3 +1785,47 @@ test("partner and both customer portals use separate HttpOnly browser sessions",
     expectStatus(await agent.get(profile), 401, portal + " logout blocks access");
   }
 });
+
+
+test("partner teammates: role permissions, dashboard privacy and current access across supported types", async () => {
+  const { PartnerUser } = require("../models/Index");
+  const { ROLE_PERMISSIONS } = require("../config/roles");
+  // Separate this role matrix from earlier rate-limit scenarios.
+  await require("../models/RateLimitCounter").deleteMany({ _id: /^partner-auth:/ });
+  const password = "RoleTesting123!";
+  const passwordHash = await require("bcryptjs").hash(password, 4);
+  for (const type of ["affiliate", "vendor", "reseller"]) {
+    for (const role of ["admin", "sales", "finance", "viewer"]) {
+      const email = `${type}-${role}-permissions@example.com`;
+      const user = await PartnerUser.create({ partnerId: state.partners[type].id, name: `${role} teammate`, email, role, permissions: ROLE_PERMISSIONS[role], status: "active", auth: { passwordHash } });
+      const signedIn = expectStatus(await api().post("/api/partner/auth/login").send({ email, password }), 200, `${type} ${role} login`);
+      const token = signedIn.token;
+      const permissions = ROLE_PERMISSIONS[role];
+      const can = p => permissions.includes(p);
+      for (const [path, permission] of [["/api/partner/team", "team:view"], ["/api/partner/commissions", "commissions:view"], ["/api/partner/settlements", "settlements:view"], ["/api/partner/documents", "documents:view"], ["/api/partner/bank", "bank:view"]]) {
+        if (type === "reseller" && ["commissions:view", "settlements:view"].includes(permission)) continue;
+        expectStatus(await api().get(path).set(as(token)), can(permission) ? 200 : 403, `${type} ${role} ${permission}`);
+      }
+      if (!can("team:manage")) expectStatus(await api().post("/api/partner/team").set(as(token)).send({}), 403, "team mutation denied");
+      if (!can("profile:update")) expectStatus(await api().patch("/api/partner/profile").set(as(token)).send({ city: "Unauthorized" }), 403, "profile mutation denied");
+      if (type === "vendor" && !can("customers:manage")) expectStatus(await api().post("/api/partner/customers").set(as(token)).send({}), 403, "customer mutation denied");
+      if (type === "reseller") {
+        expectStatus(await api().get("/api/partner/reseller/invoices").set(as(token)), can("reseller:billing:view") ? 200 : 403, "billing access");
+        if (!can("reseller:billing:pay")) expectStatus(await api().post(`/api/partner/reseller/invoices/${user._id}/pay`).set(as(token)).send({}), 403, "payment denied");
+        if (!can("reseller:license:purchase")) expectStatus(await api().post("/api/partner/reseller/license-orders").set(as(token)).send({}), 403, "licence purchase denied");
+      }
+      const dashboard = expectStatus(await api().get("/api/partner/dashboard").set(as(token)), 200, "role dashboard").data;
+      if (!can("commissions:view")) {
+        assert.equal(dashboard.businessOverview.earnings, undefined);
+        assert.equal(dashboard.stats.totalCommission, undefined);
+        assert.deepEqual(dashboard.commissionTrend, []);
+        const profile = expectStatus(await api().get("/api/partner/profile").set(as(token)), 200, "role profile");
+        assert.equal(profile.data.partner.stats.totalCommission, undefined);
+      }
+      if (!can("reseller:billing:view")) assert.equal(dashboard.businessOverview.invoices, undefined);
+      assert.deepEqual(dashboard.recentActivity, []);
+      user.permissions = []; await user.save();
+      expectStatus(await api().get("/api/partner/dashboard").set(as(token)), 403, "permission removal applies to existing login");
+    }
+  }
+});

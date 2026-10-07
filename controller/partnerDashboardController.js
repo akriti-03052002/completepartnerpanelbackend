@@ -141,9 +141,7 @@ const getDashboard = async (req, res) => {
         ? typeStats.totalDeals
         : partner.stats.totalLeads;
 
-    return res.json({
-      success: true,
-      data: {
+    const data = {
         stats: partner.stats,
         partnerType: partner.partnerType,
         typeStats,
@@ -165,8 +163,9 @@ const getDashboard = async (req, res) => {
           period: `${row._id.year}-${String(row._id.month).padStart(2, "0")}`,
           total: row.total
         }))
-      }
-    });
+    };
+    require("../services/filterPartnerDashboard")(data, req.partnerUser);
+    return res.json({ success: true, data });
   } catch (error) {
     console.error("getDashboard error:", error);
     return res.status(500).json({ success: false, message: "Something went wrong loading the dashboard." });
