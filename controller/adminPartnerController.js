@@ -139,11 +139,12 @@ const withInvitationStatus = async (partners) => {
 };
 
 const listPartners = async (req, res) => {
-  const { status, partnerType, search } = req.query;
+  const { status, partnerType, search, verificationStatus } = req.query;
 
   const filter = {};
   if (status) filter.status = status;
   if (partnerType) filter.partnerType = partnerType;
+  if (verificationStatus === "verified") filter["verification.overallStatus"] = "verified";
   if (typeof search === "string" && search.trim()) {
     const fields = ["legalEntity.businessName", "partnerCode", "primaryContact.name", "primaryContact.email", "primaryContact.phone", "referral.referralCode"];
     filter.$and = search.trim().split(/\s+/).map((word) => {
