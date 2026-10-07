@@ -191,3 +191,50 @@ test("captured payments recover missing commissions once without changing newer 
   assert.equal(totals.totalRevenue, 10000);
   assert.equal(totals.referredScreens, 50);
 });
+
+test("profile business summaries are scoped to each partner and count all records", async () => {
+  const summary = require("../services/partnerProfileSummary");
+  const { PartnerReferral, InfluencerContentSubmission, Invoice, Customer } = require("../models/Index");
+  const own = new mongoose.Types.ObjectId(), other = new mongoose.Types.ObjectId();
+  await PartnerReferral.collection.insertMany([
+    { partnerId: own, status: "won", closure: { dealValue: 2000 } },
+    { partnerId: own, status: "proposal" }, { partnerId: other, status: "won", closure: { dealValue: 999999 } }
+  ]);
+  const affiliate = await summary({ _id: own, partnerType: "affiliate" });
+  assert.equal(affiliate.leads.won.amount, 2000);
+  assert.equal(affiliate.leads.proposal.count, 1);
+  await InfluencerContentSubmission.collection.insertMany([
+    { partnerId: own, status: "pending", platform: "instagram" },
+    { partnerId: other, status: "approved", platform: "instagram" }
+  ]);
+  const influencer = await summary({ _id: own, partnerType: "influencer" });
+  assert.equal(influencer.posts.pending.count, 1);
+  assert.equal(influencer.posts.approved, undefined);
+  assert.equal(influencer.platforms.instagram.count, 1);
+  await Invoice.collection.insertMany([{ partnerId: own, status: "paid", amount: 1180 }, { partnerId: other, status: "paid", amount: 999999 }]);
+  await Customer.collection.insertOne({ partnerId: own, companyName: "Own customer", email: "own-summary@example.test", subscription: { status: "active", screenCount: 7 } });
+  const vendor = await summary({ _id: own, partnerType: "vendor" });
+  assert.equal(vendor.payments.paid.amount, 1180);
+  assert.equal(vendor.customers.active.amount, 7);
+  assert.equal(vendor.recentCustomers.length, 1);
+  const ResellerInvoice = require("../models/ResellerInvoice");
+  const Order = require("../models/ScreenLicensePurchaseOrder");
+  await ResellerInvoice.collection.insertMany([{ invoiceNumber: "SUMMARY-PAID", partnerId: own, paymentStatus: "paid", total: 500 }, { invoiceNumber: "SUMMARY-DUE", partnerId: own, paymentStatus: "overdue", total: 200 }, { invoiceNumber: "SUMMARY-OTHER", partnerId: other, paymentStatus: "paid", total: 900000 }]);
+  await Order.collection.insertOne({ partnerId: own, orderStatus: "requested" });
+  const reseller = await summary({ _id: own, partnerType: "reseller" });
+  assert.equal(reseller.invoices.paid.amount, 500);
+  assert.equal(reseller.invoices.overdue.amount, 200);
+  assert.equal(reseller.orders.requested.count, 1);
+});
+
+test("profile customer list includes only the selected partner and supports pagination", async () => {
+  const { Partner, Customer } = require("../models/Index");
+  const partner = await Partner.create({ partnerCode: "PROFILE-CUSTOMERS", partnerType: "vendor", primaryContact: { name: "Profile", email: "profile-customers@test.example" } });
+  await Customer.collection.insertMany(Array.from({ length: 55 }, (_, i) => ({ partnerId: partner._id, companyName: `Customer ${i}`, email: `paged-customer-${i}@example.test`, subscription: { status: "active", screenCount: i + 1 }, createdAt: new Date(i) })));
+  let body;
+  await require("../controller/adminPartnerCustomersController")({ params: { id: String(partner._id) }, query: { page: "2" } }, { json: (value) => { body = value; } });
+  assert.equal(body.pagination.total, 55);
+  assert.equal(body.data.length, 5);
+  assert.equal(body.data.every((row) => row.name.startsWith("Customer ")), true);
+  assert.equal(body.data.some((row) => row.name === "Own customer"), false);
+});

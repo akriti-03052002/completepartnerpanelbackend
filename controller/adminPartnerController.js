@@ -170,17 +170,19 @@ const getPartner = async (req, res) => {
     return res.status(404).json({ success: false, message: "Partner not found." });
   }
 
-  const [documents, bankAccount, team, activity] = await Promise.all([
+  const [documents, bankAccount, team, activity, summary] = await Promise.all([
     PartnerDocument.find({ partnerId: partner._id }).sort({ createdAt: -1 }),
     PartnerBankAccount.findOne({ partnerId: partner._id }),
     PartnerUser.find({ partnerId: partner._id }),
-    PartnerActivity.find({ partnerId: partner._id }).sort({ createdAt: -1 }).limit(30)
+    PartnerActivity.find({ partnerId: partner._id }).sort({ createdAt: -1 }).limit(30),
+    require("../services/partnerProfileSummary")(partner)
   ]);
 
   return res.json({
     success: true,
     data: {
       partner,
+      summary,
       documents,
       requiredDocumentTypes: getRequiredDocumentTypes(partner.partnerType),
       notApplicableDocumentTypes: getNotApplicableDocumentTypes(partner.partnerType),
