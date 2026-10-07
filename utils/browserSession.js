@@ -10,8 +10,7 @@ const browserSession = (req, res, next) => {
   const stored = cookies(req);
   const usesCookies = Object.values(names).some(name => stored[name]);
   if ((usesCookies || req.get("X-Session-Mode") === "cookie") && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
-    const allowed = [process.env.CLIENT_URL, ...(process.env.CLIENT_URLS || "").split(","), ...(process.env.NODE_ENV !== "production" ? ["http://localhost:5173", "http://127.0.0.1:5173"] : [])].filter(Boolean).filter(origin => origin !== "*").map(origin => origin.trim().replace(/\/+$/, ""));
-    if (!allowed.includes(req.get("origin"))) return res.status(403).json({ success: false, message: "This request must come from an allowed application origin." });
+    if (!require("./applicationOrigin")(req.get("origin"))) return res.status(403).json({ success: false, message: "This request must come from an allowed application origin. Add this frontend URL to CLIENT_URLS." });
   }
   if (!req.headers.authorization) {
     const portal = req.path.startsWith("/api/admin/") ? "admin" : req.path.startsWith("/api/customer-portal/") ? "portal" : req.path.startsWith("/api/customer/") ? "customer" : req.path.startsWith("/api/partner/") ? "partner" : null;
