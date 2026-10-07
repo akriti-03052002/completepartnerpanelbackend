@@ -901,7 +901,7 @@ test("admin configuration: programs, tiers, commission rules, pricing, opportuni
   expectStatus(await api().patch(`/api/admin/config/commission-rules/${rule.data._id}`).set(admin()).send({ rate: 12 }), 200, "update commission rule");
 
   expectStatus(await api().put("/api/admin/config/screen-pricing").set(admin()).send({ basicPricePerScreen: 300, premiumPricePerScreen: 600 }), 200, "screen pricing");
-  expectStatus(await api().patch(`/api/admin/partners/${state.partners.vendor.id}/tier`).set(admin()).send({ tierId: tier.data._id }), 200, "assign tier");
+  expectStatus(await api().patch(`/api/admin/partners/${state.partners.vendor.id}/tier`).set(admin()).send({ tierId: tier.data._id }), 400, "vendor tier assignment is disabled");
   expectStatus(await api().get(`/api/admin/partners/${state.partners.vendor.id}/commission-assignment`).set(admin()), 200, "commission assignment");
 
   // An admin onboards a partner directly, uploads a document for them, then rejects them.
@@ -1114,7 +1114,7 @@ test("each partner is notified about its own type's work — leads, posts / reel
   // Vendor: customers, the commission each payment earns, and the settlement with its bill.
   expectTypes("vendor", ["customer_registered", "commission_created", "commission_approved", "commission_held",
     "settlement_created", "settlement_held", "settlement_bill_verified", "settlement_failed", "settlement_retried", "settlement_paid",
-    "customer_subscription_cancelled", "customer_subscription_expired", "tier_changed", "partner_agreement_issued"]);
+    "customer_subscription_cancelled", "customer_subscription_expired", "partner_agreement_issued"]);
 
   // Reseller: prepayment, license requests, inventory, invoices, customers, bank change.
   expectTypes("reseller", ["prepayment_awaiting_payment", "prepayment_done", "license_order_requested", "license_order_approved", "license_order_rejected",

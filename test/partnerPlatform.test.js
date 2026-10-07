@@ -222,7 +222,7 @@ test("each non-influencer partner type's agreement renders and is stored in Clou
     return query;
   };
   t.mock.method(PartnerTier, "findById", async () => null);
-  t.mock.method(CommissionRule, "findOne", async () => null);
+  t.mock.method(CommissionRule, "findOne", () => ({ sort: async () => null }));
   t.mock.method(SettlementSetting, "findOne", async () => null);
   t.mock.method(PartnerCommissionAssignment, "findOne", noAssignment);
   t.mock.method(ResellerPricingPlan, "findOne", async () => ({

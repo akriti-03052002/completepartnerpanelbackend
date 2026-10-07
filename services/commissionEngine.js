@@ -1,6 +1,6 @@
 const { CommissionRule, PartnerCommission, Partner, PartnerNotification, PartnerBankAccount } = require("../models/Index");
 const logActivity = require("../utils/logActivity");
-const { getActiveCommissionAssignment } = require("../utils/partnerCommissionResolver");
+const { findApplicableCommissionRule } = require("../utils/partnerCommissionResolver");
 
 // No commission is created — not held, not pending, nothing — for a
 // partner whose payout bank account hasn't cleared both the automated
@@ -89,23 +89,7 @@ const computeExpiryFromRecurring = (rule) => {
 // commission) always wins over the shared tier ladder — see
 // utils/partnerCommissionResolver.js. Non-vendor partner types never
 // have one, so this is a no-op for them.
-const findRuleForPartner = async (partner) => {
-  const assignment = await getActiveCommissionAssignment(partner._id);
-  if (assignment) return assignment;
-
-  const tierId = partner.program?.tierId;
-
-  if (tierId) {
-    const tierRule = await CommissionRule.findOne({ tierId, status: "active" });
-    if (tierRule) return tierRule;
-  }
-
-  return CommissionRule.findOne({
-    status: "active",
-    isAddOn: { $ne: true },
-    $or: [{ tierId: null }, { tierId: { $exists: false } }]
-  });
-};
+const findRuleForPartner = findApplicableCommissionRule;
 
 const createCommissionRow = async ({ partner, opportunityId, customerId, rule, revenue, screenCount, cycleNumber, parentCommissionId }) => {
   const grossCommission = computeGrossCommission(rule, revenue, screenCount);
@@ -161,7 +145,7 @@ const generateCommissionForWonOpportunity = async ({ opportunity, revenue, scree
 
   if (!rule) {
     throw new Error(
-      "No active commission rule matches this partner's tier, and no generic fallback rule exists. Create one before marking deals won."
+      "No active commission assignment is configured for this partner. Assign their commission before marking deals won."
     );
   }
 
@@ -260,7 +244,7 @@ const generateCommissionForCustomerPayment = async ({ customer, revenue, screenC
 
   if (!rule) {
     throw new Error(
-      "No active commission rule matches this partner's tier, and no generic fallback rule exists. Create one before marking payment received."
+      "No active commission assignment is configured for this vendor. Assign their commission before marking payment received."
     );
   }
 

@@ -14,7 +14,7 @@ const {
   AGREEMENT_SECTIONS, loadAgreementContext, resolveSectionText
 } = require("../services/generatePartnerAgreement");
 const { applyProfileUpdate } = require("../utils/partnerProfile");
-const { autoAssignVendorTier } = require("../services/tierAssignment");
+const { refreshVendorScreenCount } = require("../services/tierAssignment");
 const { getRequiredDocumentTypes, getNotApplicableDocumentTypes } = require("../utils/partnerVerification");
 const { sendMail } = require("../utils/mailer");
 const { holdSettlementsForPartner } = require("../utils/settlementHold");
@@ -265,13 +265,8 @@ const updatePartnerStatus = async (req, res) => {
 
     if (status === "active") {
       if (partner.partnerType === "vendor") {
-        // Vendor's agreement used to be generated right here off whatever
-        // tier the screen-count ladder happened to auto-suggest at this
-        // exact moment. Now the admin explicitly confirms/picks the
-        // commission rule via assignTier below — this just seeds a
-        // sensible default tier for that panel, it doesn't generate
-        // anything yet.
-        await autoAssignVendorTier(partner);
+        // Commission terms are assigned separately for this vendor.
+        await refreshVendorScreenCount(partner);
       } else {
         // Every other partner type still gets one immediately on activation.
         await attachPartnerAgreement(partner, req.adminUser._id);
@@ -346,6 +341,10 @@ const assignTier = async (req, res) => {
 
     if (!partner) {
       return res.status(404).json({ success: false, message: "Partner not found." });
+    }
+
+    if (partner.partnerType === "vendor") {
+      return res.status(400).json({ success: false, message: "Vendors use individual commission assignments, not tiers." });
     }
 
     partner.program.tierId = tierId || undefined;

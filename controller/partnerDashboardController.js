@@ -128,7 +128,7 @@ const getDashboard = async (req, res) => {
       ]),
       PartnerDocument.find({ partnerId: partner._id }),
       PartnerBankAccount.findOne({ partnerId: partner._id }),
-      partner.program?.tierId ? PartnerTier.findById(partner.program.tierId) : null,
+      partner.partnerType !== "vendor" && partner.program?.tierId ? PartnerTier.findById(partner.program.tierId) : null,
       getPartnerTypeStats(partner)
     ]);
 

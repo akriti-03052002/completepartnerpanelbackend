@@ -1,7 +1,7 @@
 const { Customer, Partner, Invoice } = require("../models/Index");
 const CustomerPayment = require("../models/CustomerPayment");
 const { generateCommissionForCustomerPayment } = require("./commissionEngine");
-const { autoAssignVendorTier } = require("./tierAssignment");
+const { refreshVendorScreenCount } = require("./tierAssignment");
 
 /* ============================================================
    CUSTOMER PAYMENT FULFILLMENT
@@ -78,7 +78,7 @@ const applyPaidCustomerPayment = async (customerPaymentId, { razorpayPaymentId, 
         screenCount: claimed.screenCount,
         req
       });
-      await autoAssignVendorTier(partner);
+      await refreshVendorScreenCount(partner);
     }
   }
 

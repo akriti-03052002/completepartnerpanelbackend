@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 
-const { Partner, PartnerUser, PartnerProgram, PartnerNotification, EmailOtp, OtpRateLimit } = require("../models/Index");
+const { Partner, PartnerUser, PartnerNotification, EmailOtp, OtpRateLimit } = require("../models/Index");
 const { generatePartnerCode, generateReferralCode } = require("../utils/generateCode");
 const { ROLE_PERMISSIONS } = require("../config/roles");
 const logActivity = require("../utils/logActivity");
@@ -202,7 +202,6 @@ const registerPartner = async (req, res) => {
     const {
       partnerType,
       contactName, email, phone,
-      programId,
       password,
       emailVerificationToken
     } = req.body;
@@ -244,35 +243,6 @@ const registerPartner = async (req, res) => {
       return res.status(409).json({ success: false, message: "An account with this email already exists." });
     }
 
-    let selectedProgram = null;
-
-    if (programId) {
-      selectedProgram = await PartnerProgram.findById(programId);
-
-      if (!selectedProgram) {
-        return res.status(400).json({ success: false, message: "Invalid partner program." });
-      }
-
-      // A program is a limited-time drive, not a permanent category —
-      // joining outside its window shouldn't silently grant the incentive.
-      if (!selectedProgram.isActiveNow) {
-        return res.status(400).json({
-          success: false,
-          message: "This program is no longer accepting new sign-ups. You can still register normally without it."
-        });
-      }
-
-      // A program's incentive (e.g. a starting tier) is scoped to one
-      // partner type — applying it to a mismatched type would assign a
-      // tier that doesn't belong to their ladder at all.
-      if (selectedProgram.type !== partnerType) {
-        return res.status(400).json({
-          success: false,
-          message: `This program is only for ${selectedProgram.type} partners.`
-        });
-      }
-    }
-
     const partnerCode = generatePartnerCode();
 
     // Vendor partners don't get their referral code yet — for Vendor this
@@ -309,14 +279,6 @@ const registerPartner = async (req, res) => {
       partnerCode,
       partnerType,
       primaryContact: { name: contactName, email: email.toLowerCase().trim(), phone },
-      program: selectedProgram
-        ? {
-            programId: selectedProgram._id,
-            tierId: selectedProgram.incentive?.startingTierId || undefined,
-            tierAssignedAt: selectedProgram.incentive?.startingTierId ? new Date() : undefined,
-            tierAssignmentMode: "automatic"
-          }
-        : undefined,
       referral: referralCode
         ? {
             referralCode,
@@ -350,9 +312,7 @@ const registerPartner = async (req, res) => {
       activityType: "status_changed",
       entityType: "Partner",
       entityId: partner._id,
-      description: selectedProgram
-        ? `Partner account registered via the "${selectedProgram.name}" program.`
-        : "Partner account registered successfully.",
+      description: "Partner account registered successfully.",
       req
     });
 
@@ -369,28 +329,6 @@ const registerPartner = async (req, res) => {
 
     // A signup bonus isn't tied to a deal, so it doesn't flow through the
     // commission engine — just flag it for an admin to settle manually.
-    if (selectedProgram?.incentive?.bonusAmount) {
-      const bonusAmount = selectedProgram.incentive.bonusAmount;
-
-      await logActivity({
-        partnerId: partner._id,
-        performedByType: "system",
-        activityType: "note",
-        entityType: "Partner",
-        entityId: partner._id,
-        description: `${bonusAmount} signup bonus earned via "${selectedProgram.name}" — needs manual settlement by an admin.`,
-        req
-      });
-
-      await PartnerNotification.create({
-        partnerId: partner._id,
-        type: "signup_bonus",
-        title: "Signup bonus earned",
-        message: `You earned a ${bonusAmount} signup bonus for joining via "${selectedProgram.name}". SPOTX will settle this shortly.`,
-        entity: { type: "PartnerProgram", entityId: selectedProgram._id }
-      });
-    }
-
     const token = generateToken(partnerUser);
 
     return res.status(201).json({
@@ -406,7 +344,7 @@ const registerPartner = async (req, res) => {
         verificationStatus: partner.verification.overallStatus
       },
       user: { id: partnerUser._id, name: partnerUser.name, email: partnerUser.email, role: partnerUser.role, permissions: partnerUser.permissions },
-      joinedProgram: selectedProgram ? { id: selectedProgram._id, name: selectedProgram.name } : null
+      joinedProgram: null
     });
   } catch (error) {
     console.error("Partner registration error:", error);

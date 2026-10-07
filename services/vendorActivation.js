@@ -2,7 +2,7 @@ const { Partner, PartnerNotification } = require("../models/Index");
 const { generateNumericReferralCode } = require("../utils/generateCode");
 const { isPartnerFullyVerified } = require("../utils/partnerVerification");
 const { attachPartnerAgreement } = require("./generatePartnerAgreement");
-const { autoAssignVendorTier } = require("./tierAssignment");
+const { refreshVendorScreenCount } = require("./tierAssignment");
 
 /**
  * Generates and assigns a Vendor or Reseller customer-signup referral
@@ -71,9 +71,7 @@ const autoActivatePartnerIfVerified = async (partnerId, adminUserId) => {
   partner.verification.verifiedAt = new Date();
   await partner.save();
 
-  // Lands them on Registered (0 screens) immediately rather than "no tier"
-  // — climbs on its own from here as their customers subscribe.
-  await autoAssignVendorTier(partner);
+  await refreshVendorScreenCount(partner);
 
   await attachPartnerAgreement(partner, adminUserId);
 

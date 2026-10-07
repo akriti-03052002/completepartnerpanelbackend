@@ -1,11 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 const PDFDocument = require("pdfkit");
-const { PartnerTier, CommissionRule, SettlementSetting, PartnerDocument } = require("../models/Index");
+const { SettlementSetting, PartnerDocument } = require("../models/Index");
 const PartnerAgreementAcceptance = require("../models/PartnerAgreementAcceptance");
 const ResellerBillingConfig = require("../models/ResellerBillingConfig");
 const ResellerPricingPlan = require("../models/ResellerPricingPlan");
-const { getActiveCommissionAssignment } = require("../utils/partnerCommissionResolver");
+const { findApplicableCommissionRule } = require("../utils/partnerCommissionResolver");
 const { getAgreementTemplate } = require("./agreementTemplate");
 const { renderAgreementPdf: renderInfluencerAgreementPdf } = require("./influencerAgreement");
 
@@ -24,23 +24,7 @@ const FAINT = "#999999";
  * rule, falling back to a generic tier-less one) — the agreement should
  * describe the exact terms that will actually apply, not a paraphrase.
  */
-const findApplicableRule = async (partner) => {
-  const assignment = await getActiveCommissionAssignment(partner._id);
-  if (assignment) return assignment;
-
-  const tierId = partner.program?.tierId;
-
-  if (tierId) {
-    const tierRule = await CommissionRule.findOne({ tierId, status: "active" });
-    if (tierRule) return tierRule;
-  }
-
-  return CommissionRule.findOne({
-    status: "active",
-    isAddOn: { $ne: true },
-    $or: [{ tierId: null }, { tierId: { $exists: false } }, { partnerType: partner.partnerType }]
-  });
-};
+const findApplicableRule = findApplicableCommissionRule;
 
 const formatPercent = (n) => `${n}%`;
 const formatMoney = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
@@ -61,7 +45,7 @@ const CALCULATION_BASE_LABEL = {
  */
 const describeCommissionRule = (rule) => {
   if (!rule) {
-    return "No commission rule is currently configured for this partner's tier. SPOTX will assign one before any commission becomes payable, and this Agreement will be reissued to reflect it.";
+    return "No commission rule is currently configured for this partner. SPOTX will assign one before any commission becomes payable, and this Agreement will be reissued to reflect it.";
   }
 
   const base = CALCULATION_BASE_LABEL[rule.calculationBase] || "the applicable deal value";
@@ -209,13 +193,8 @@ const AGREEMENT_SECTIONS = [
   {
     key: "scope",
     title: () => "Scope of Partnership",
-    defaultText: (partner, { tier }) => {
-      const scope = SCOPE_BY_PARTNER_TYPE[partner.partnerType] ||
-        "The scope of this partnership is as configured for the Partner in the SPOTX Partner Panel.";
-      // Only Vendors climb tiers (see services/tierAssignment.js).
-      if (!tier || partner.partnerType !== "vendor") return scope;
-      return `${scope}\n\nThe Partner is currently assigned to the "${tier.name}" tier${tier.qualification?.metric?.label ? `, qualifying on ${tier.qualification.metric.label}` : ""}. Tier assignment may change over time as the Partner's qualifying activity changes, per the rules configured in the SPOTX Partner Panel.`;
-    }
+    defaultText: (partner) => SCOPE_BY_PARTNER_TYPE[partner.partnerType] ||
+      "The scope of this partnership is as configured for the Partner in the SPOTX Partner Panel."
   },
   {
     key: "onboarding",
@@ -334,7 +313,7 @@ const AGREEMENT_SECTIONS = [
       "between the Parties regarding the subject matter herein. Any amendment to the " +
       (isReseller(partner)
         ? "pricing or scope"
-        : isAffiliate(partner) ? "Referral Reward terms or scope" : "commission structure, tier, or scope") +
+        : isAffiliate(partner) ? "Referral Reward terms or scope" : "commission structure or scope") +
       " described above will be reflected in a reissued version of this Agreement."
   }
 ];
@@ -346,8 +325,7 @@ const AGREEMENT_SECTIONS = [
  * so the agreement always describes what's actually configured right now.
  */
 const loadAgreementContext = async (partner) => {
-  const [tier, rule, settlementSetting, pricingPlan, billingConfig] = await Promise.all([
-    partner.program?.tierId ? PartnerTier.findById(partner.program.tierId) : null,
+  const [rule, settlementSetting, pricingPlan, billingConfig] = await Promise.all([
     // Only a Vendor's earnings come from a commission rule.
     partner.partnerType === "vendor" ? findApplicableRule(partner) : null,
     SettlementSetting.findOne({ partnerId: partner._id }),
@@ -362,7 +340,7 @@ const loadAgreementContext = async (partner) => {
     ? ` Tax will be deducted at source at ${formatPercent(settlementSetting.tax.tdsRate)} as applicable under Indian tax law.`
     : " Applicable taxes, including tax deducted at source, will be withheld as required under Indian law.";
 
-  return { tier, rule, settlementCadence, tdsNote, pricingPlan, billingConfig };
+  return { rule, settlementCadence, tdsNote, pricingPlan, billingConfig };
 };
 
 // Effective text for a section: the partner's saved override if they have

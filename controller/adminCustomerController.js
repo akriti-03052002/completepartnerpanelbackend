@@ -1,6 +1,6 @@
 const { Customer, Partner, Invoice } = require("../models/Index");
 const { generateCommissionForCustomerPayment } = require("../services/commissionEngine");
-const { autoAssignVendorTier } = require("../services/tierAssignment");
+const { refreshVendorScreenCount } = require("../services/tierAssignment");
 const { sendCustomerSetPasswordEmail } = require("../services/customerAuth");
 const logActivity = require("../utils/logActivity");
 const notifyPartner = require("../utils/notifyPartner");
@@ -101,7 +101,7 @@ const markCustomerPaid = async (req, res) => {
     });
 
     const partner = await Partner.findById(customer.partnerId);
-    if (partner) await autoAssignVendorTier(partner);
+    if (partner) await refreshVendorScreenCount(partner);
 
     const message = commission
       ? "Payment recorded and commission generated."
@@ -127,7 +127,7 @@ const cancelCustomerSubscription = async (req, res) => {
     await customer.save();
 
     const partner = await Partner.findById(customer.partnerId);
-    if (partner) await autoAssignVendorTier(partner);
+    if (partner) await refreshVendorScreenCount(partner);
 
     await logActivity({
       partnerId: customer.partnerId,
@@ -168,7 +168,7 @@ const markCustomerExpired = async (req, res) => {
     await customer.save();
 
     const partner = await Partner.findById(customer.partnerId);
-    if (partner) await autoAssignVendorTier(partner);
+    if (partner) await refreshVendorScreenCount(partner);
 
     await logActivity({
       partnerId: customer.partnerId,

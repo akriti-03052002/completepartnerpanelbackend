@@ -81,3 +81,21 @@ test("submission pagination returns all-status counts without exposing social cr
   assert.ok(!JSON.stringify(body).includes("secret"));
   assert.equal(body.data[0].partnerId.socialAccounts, undefined);
 });
+
+test("vendor commissions require an individual assignment and ignore tier and generic rates", async () => {
+  const Rule = require("../models/Commissionrule");
+  const Assignment = require("../models/PartnerCommissionAssignment");
+  const { findApplicableCommissionRule } = require("../utils/partnerCommissionResolver");
+  const tierId = new mongoose.Types.ObjectId();
+  const partner = { _id: new mongoose.Types.ObjectId(), partnerType: "vendor", program: { tierId } };
+  const generic = await Rule.create({ name: "Vendor fallback", partnerType: "vendor", status: "active", commissionType: "percentage", rate: 10 });
+  const tier = await Rule.create({ name: "Existing tier", tierId, partnerType: "vendor", status: "active", commissionType: "percentage", rate: 15 });
+  assert.equal(await findApplicableCommissionRule(partner), null);
+  const customId = new mongoose.Types.ObjectId();
+  await Assignment.collection.insertOne({ _id: customId, partnerId: partner._id, status: "active", commissionType: "percentage", rate: 25, assignedAt: new Date() });
+  const selected = await findApplicableCommissionRule(partner);
+  assert.equal(String(selected._id), String(customId));
+  assert.equal(selected.rate, 25);
+  await Assignment.deleteOne({ _id: customId });
+  await Rule.deleteMany({ _id: { $in: [generic._id, tier._id] } });
+});

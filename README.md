@@ -180,3 +180,10 @@ Authentication, OTP and customer checkout limiters share atomic MongoDB counters
 Social synchronization now uses a shared database lease, like billing, and streams partners through a cursor. Jobs still execute inside API processes; a dedicated worker and durable retry queue remain future improvements for heavier workloads.
 
 Run `node --test test/scalability.test.js` to verify pagination totals, shared counter concurrency, counter expiry, lease exclusion and social credential handling. Capacity has not been load-tested. Existing health endpoints and request timing logs help inspect behavior, but production latency percentiles, error-rate alerts and realistic load tests are still required before setting a capacity target.
+
+
+### Individual vendor commissions
+
+Vendors now earn strictly from their active `PartnerCommissionAssignment`. Vendor tier and generic rules are ignored, and the agreement uses the same assignment. Configure each vendor's commission from their admin partner record before processing customer payments. Missing assignments stop commission generation with an explicit error; no fallback rate is inferred. Existing ledger entries, settlements and stored tier records are preserved. Active agreements are not automatically rewritten: reissue them through the existing admin action if their wording needs updating.
+
+Vendor activation and customer payment/subscription changes still refresh screen counts, but no longer assign tiers. The public vendor description now describes individually assigned terms, and admin configuration contains only Screen Pricing.
