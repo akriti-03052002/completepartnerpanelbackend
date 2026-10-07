@@ -112,7 +112,7 @@ const uploadDocumentForPartner = async (req, res) => {
     return res.status(201).json({ success: true, message: "Document uploaded.", data: document });
   } catch (error) {
     console.error("uploadDocumentForPartner error:", error);
-    return res.status(500).json({ success: false, message: "Something went wrong uploading the document." });
+    return res.status(error.statusCode || 500).json({ success: false, message: error.statusCode === 400 ? error.message : "Something went wrong uploading the document." });
   }
 };
 

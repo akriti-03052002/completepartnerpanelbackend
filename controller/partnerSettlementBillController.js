@@ -112,7 +112,7 @@ const submitBill = async (req, res) => {
       return res.status(400).json({ success: false, message: "A bill already exists for this settlement." });
     }
     console.error("submitBill error:", error);
-    return res.status(500).json({ success: false, message: "Something went wrong submitting the bill." });
+    return res.status(error.statusCode || 500).json({ success: false, message: error.statusCode === 400 ? error.message : "Something went wrong submitting the bill." });
   }
 };
 

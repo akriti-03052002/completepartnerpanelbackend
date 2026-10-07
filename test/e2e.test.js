@@ -755,6 +755,8 @@ test("partner account: sign in, notifications, forgot + reset password", async (
   const mail = lastMailTo(p.email);
   const token = (mail.text || mail.html).match(/reset-password\/([A-Za-z0-9_-]+)/)[1];
   expectStatus(await api().post(`/api/partner/auth/reset-password/${token}`).send({ password: "newpassword456" }), 200, "reset password");
+  expectStatus(await api().get("/api/partner/dashboard").set(as(p.token)), 401, "partner reset revokes existing session");
+  p.token = expectStatus(await api().post("/api/partner/auth/login").send({ email: p.email, password: "newpassword456" }), 200, "partner fresh login").token;
   expectStatus(await api().post("/api/partner/auth/login").send({ email: p.email, password: "newpassword456" }), 200, "login with new password");
   assert.equal((await api().post(`/api/partner/auth/reset-password/${token}`).send({ password: "another789012" })).status, 400, "a reset link works once");
 });
@@ -815,11 +817,14 @@ test("vendor customer: set password from email, screens, subscribe online, reset
   const setToken = (invite.text || invite.html).match(/reset-password\/([A-Za-z0-9_-]+)/)[1];
   expectStatus(await api().post(`/api/public/customers/reset-password/${setToken}`).send({ password: "customerpass1" }), 200, "customer sets password");
   const login = expectStatus(await api().post("/api/public/customers/login").send({ email: "direct@example.com", password: "customerpass1" }), 200, "customer login");
-  const token = login.token || login.data?.token;
+  let token = login.token || login.data?.token;
 
   expectStatus(await api().patch("/api/customer/profile").set(as(token)).send({ contactName: "New Contact", phone: "9000011111" }), 200, "customer edits profile");
   expectStatus(await api().post("/api/customer/change-password").set(as(token)).send({ currentPassword: "customerpass1", newPassword: "customerpass2" }), 200, "customer changes password");
 
+  expectStatus(await api().get("/api/customer/profile").set(as(token)), 401, "password change revokes old customer session");
+  const refreshedLogin = expectStatus(await api().post("/api/public/customers/login").send({ email: "direct@example.com", password: "customerpass2" }), 200, "login after password change");
+  token = refreshedLogin.data.token;
   const screen = expectStatus(await api().post("/api/customer/screens").set(as(token)).send({ name: "Lobby", location: "Front desk" }), 201, "customer adds screen");
   expectStatus(await api().delete(`/api/customer/screens/${screen.data._id}`).set(as(token)), 200, "customer removes screen");
 
@@ -1665,4 +1670,28 @@ test("each authenticated partner dashboard returns only its own business overvie
     assert.equal(actual.assignment, undefined);
     assert.equal(actual.recentCustomers, undefined);
   }
+});
+
+
+test("reseller security: reset revokes sessions, suspended accounts lose access, spoofed files are rejected", async () => {
+  const Customer = require("../models/ResellerCustomer");
+  const customer = await Customer.findOne({ "contactDetails.email": "portal@example.com" });
+  const login = expectStatus(await api().post("/api/public/reseller-customers/login").send({ email: "portal@example.com", password: "password123" }), 200, "security login");
+  const oldToken = login.data.token;
+  expectStatus(await api().post("/api/public/reseller-customers/forgot-password").send({ email: "portal@example.com" }), 200, "request reset");
+  const token = lastMailTo("portal@example.com").text.match(/\/reseller\/customer\/verify\/([a-f0-9]+)/)[1];
+  expectStatus(await api().post("/api/public/reseller-customers/verify").send({ token, password: "updatedpassword123" }), 200, "reset password");
+  expectStatus(await api().get("/api/customer-portal/me").set(as(oldToken)), 401, "old token revoked");
+  const fresh = expectStatus(await api().post("/api/public/reseller-customers/login").send({ email: "portal@example.com", password: "updatedpassword123" }), 200, "fresh login");
+  await Customer.updateOne({ _id: customer._id }, { $set: { status: "suspended" } });
+  expectStatus(await api().get("/api/customer-portal/me").set(as(fresh.data.token)), 401, "suspension blocks existing session");
+  expectStatus(await api().post("/api/public/reseller-customers/login").send({ email: "portal@example.com", password: "updatedpassword123" }), 403, "suspension blocks login");
+  await Customer.updateOne({ _id: customer._id }, { $set: { status: customer.status } });
+  const response = await api().post("/api/partner/documents").set(as(state.partners.vendor.token)).field("documentType", "pan").attach("file", Buffer.from("not a PDF"), { filename: "fake.pdf", contentType: "application/pdf" });
+  assert.equal(response.status, 400, "fake PDF rejected");
+  for (let i = 0; i < 25; i++) {
+    const result = await api().post("/api/public/reseller-customers/login").send({ email: "missing@example.com", password: "wrongpassword" });
+    if (result.status === 429) return;
+  }
+  assert.fail("reseller login must be rate limited");
 });

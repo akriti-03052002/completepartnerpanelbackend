@@ -217,7 +217,7 @@ const registerPartner = async (req, res) => {
       });
     }
 
-    if (!password || password.length < 8) {
+    if (typeof password !== "string" || password.length < 8) {
       return res.status(400).json({
         success: false,
         message: "Password is required and must contain at least 8 characters."
@@ -494,7 +494,7 @@ const resetPassword = async (req, res) => {
     const { token } = req.params;
     const { password } = req.body;
 
-    if (!password || password.length < 8) {
+    if (typeof password !== "string" || password.length < 8) {
       return res.status(400).json({ success: false, message: "Password must be at least 8 characters." });
     }
 
@@ -511,16 +511,16 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: "This reset link is invalid or has expired." });
     }
 
-    user.auth.passwordHash = await bcrypt.hash(password, 12);
-    user.auth.sessionVersion = (user.auth.sessionVersion || 0) + 1;
-    user.auth.passwordSetupComplete = true;
-    user.auth.invitationPendingHash = undefined;
-    user.auth.invitationPendingExpires = undefined;
-    user.auth.invitationClaim = undefined;
-    user.auth.invitationClaimExpires = undefined;
-    user.auth.resetTokenHash = undefined;
-    user.auth.resetTokenExpires = undefined;
-    await user.save();
+    const passwordHash = await bcrypt.hash(password, 12);
+    const updated = await PartnerUser.findOneAndUpdate({ _id: user._id, $or: [
+      { "auth.resetTokenHash": tokenHash, "auth.resetTokenExpires": { $gt: new Date() } },
+      { "auth.invitationPendingHash": tokenHash, "auth.invitationPendingExpires": { $gt: new Date() } }
+    ] }, {
+      $set: { "auth.passwordHash": passwordHash, "auth.passwordSetupComplete": true },
+      $inc: { "auth.sessionVersion": 1 },
+      $unset: { "auth.invitationPendingHash": "", "auth.invitationPendingExpires": "", "auth.invitationClaim": "", "auth.invitationClaimExpires": "", "auth.resetTokenHash": "", "auth.resetTokenExpires": "" }
+    });
+    if (!updated) return res.status(400).json({ success: false, message: "This reset link is invalid or has expired." });
 
     return res.json({ success: true, message: "Password reset successful. You can now log in." });
   } catch (error) {
