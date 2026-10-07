@@ -811,6 +811,7 @@ test("vendor customer: set password from email, screens, subscribe online, reset
   const checkout = expectStatus(await api().post("/api/customer/subscription/checkout").set(as(selfToken)).send({ plan: "basic", screenCount: 3, durationMonths: 1 }), 200, "checkout");
   assert.ok(checkout.data.orderId, `checkout should open an order: ${JSON.stringify(checkout.data).slice(0, 300)}`);
   const pay = payOrder(checkout.data.orderId, "upi", "");
+  state.recoveryScenario = { token: selfToken, id: checkout.data.customerPaymentId, pay };
   expectStatus(await api().post("/api/customer/subscription/verify").set(as(selfToken)).send({ customerPaymentId: checkout.data.customerPaymentId, ...pay }), 200, "verify subscription payment");
   const sub = expectStatus(await api().get("/api/customer/subscription").set(as(selfToken)), 200, "subscription after payment");
   assert.equal(sub.data.subscription.status, "active");
@@ -1612,4 +1613,38 @@ test("invitation concurrency sends once and failed delivery preserves the workin
   try { expectStatus(await api().post(`/api/admin/partners/${id}/resend-invitation`).set(admin()), 503, "failed delivery"); }
   finally { failingMailRecipients.delete(email); }
   expectStatus(await api().post(`/api/partner/auth/reset-password/${token}`).set("X-Forwarded-For", "192.0.2.101").send({ password: "SecurePassword123" }), 200, "previous link survives failure");
+});
+
+test("a failed verification retry cannot downgrade a captured payment awaiting commission", async () => {
+  const Payment = require("../models/CustomerPayment");
+  const { token, id, pay } = state.recoveryScenario;
+  await Payment.updateOne({ _id: id }, { $set: { commissionGenerated: false } });
+  const original = paymentsById.get(pay.razorpay_payment_id);
+  paymentsById.set(pay.razorpay_payment_id, { ...original, amount: original.amount + 1 });
+  try {
+    expectStatus(await api().post("/api/customer/subscription/verify").set(as(token)).send({ customerPaymentId: id, ...pay }), 400, "refuse incorrect payment amount");
+    const captured = await Payment.findById(id);
+    assert.equal(captured.status, "paid");
+    assert.equal(captured.razorpay.paymentId, pay.razorpay_payment_id);
+  } finally {
+    paymentsById.set(pay.razorpay_payment_id, original);
+    await Payment.updateOne({ _id: id }, { $set: { commissionGenerated: true } });
+  }
+});
+
+test("each authenticated partner dashboard returns only its own business overview", async () => {
+  const Partner = require("../models/Partner");
+  const summarize = require("../services/partnerProfileSummary");
+  for (const type of ["affiliate", "influencer", "vendor", "reseller"]) {
+    const own = state.partners[type];
+    const partner = await Partner.findById(own.id);
+    const expected = await summarize(partner);
+    const response = expectStatus(await api().get("/api/partner/dashboard").query({ partnerId: state.partners[type === "vendor" ? "affiliate" : "vendor"].id }).set(as(own.token)), 200, `${type} own business overview`);
+    const actual = response.data.businessOverview;
+    assert.deepEqual(actual.earnings, expected.earnings);
+    const keys = { affiliate: ["leads"], influencer: ["posts", "platforms"], vendor: ["customers", "payments"], reseller: ["customers", "invoices", "orders"] }[type];
+    for (const key of keys) assert.deepEqual(actual[key], expected[key]);
+    assert.equal(actual.assignment, undefined);
+    assert.equal(actual.recentCustomers, undefined);
+  }
 });

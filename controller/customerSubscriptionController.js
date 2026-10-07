@@ -379,9 +379,11 @@ const verifyCheckoutPayment = async (req, res) => {
     const expectedPaise = Math.round(customerPayment.amount.total * 100);
 
     if (payment.status !== "captured" || payment.order_id !== orderId || payment.amount !== expectedPaise) {
-      customerPayment.status = "failed";
-      customerPayment.razorpay.failureReason = `Razorpay payment check failed (status: ${payment.status}).`;
-      await customerPayment.save();
+      if (customerPayment.status !== "paid") {
+        customerPayment.status = "failed";
+        customerPayment.razorpay.failureReason = `Razorpay payment check failed (status: ${payment.status}).`;
+        await customerPayment.save();
+      }
       return res.status(400).json({ success: false, message: "This payment couldn't be confirmed as captured for the correct amount." });
     }
 

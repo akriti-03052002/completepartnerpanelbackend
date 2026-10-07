@@ -112,7 +112,7 @@ const getDashboard = async (req, res) => {
   try {
     const partner = req.partner;
 
-    const [recentActivity, unreadNotifications, commissionTrend, documents, bankAccount, tier, typeStats] = await Promise.all([
+    const [recentActivity, unreadNotifications, commissionTrend, documents, bankAccount, tier, typeStats, businessOverview] = await Promise.all([
       PartnerActivity.find({ partnerId: partner._id }).sort({ createdAt: -1 }).limit(10),
       PartnerNotification.countDocuments({ partnerId: partner._id, read: false }),
       PartnerCommission.aggregate([
@@ -129,7 +129,8 @@ const getDashboard = async (req, res) => {
       PartnerDocument.find({ partnerId: partner._id }),
       PartnerBankAccount.findOne({ partnerId: partner._id }),
       partner.partnerType !== "vendor" && partner.program?.tierId ? PartnerTier.findById(partner.program.tierId) : null,
-      getPartnerTypeStats(partner)
+      getPartnerTypeStats(partner),
+      require("../services/partnerProfileSummary")(partner)
     ]);
 
     const metricLabel = tier?.qualification?.metric?.label || getDefaultMetricLabel(partner.partnerType);
@@ -145,6 +146,7 @@ const getDashboard = async (req, res) => {
         stats: partner.stats,
         partnerType: partner.partnerType,
         typeStats,
+        businessOverview: { earnings: businessOverview.earnings, leads: businessOverview.leads, posts: businessOverview.posts, platforms: businessOverview.platforms, customers: businessOverview.customers, payments: businessOverview.payments, inventory: businessOverview.inventory, invoices: businessOverview.invoices, orders: businessOverview.orders },
         metricLabel,
         metricValue,
         verificationStatus: partner.verification.overallStatus,
