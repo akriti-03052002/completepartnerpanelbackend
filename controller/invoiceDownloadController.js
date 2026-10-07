@@ -11,6 +11,9 @@ const downloadInvoice = (kind, audience) => async (req, res) => {
     if (audience === "customer") filter.customerId = req.customer._id;
     const invoice = await (kind === "reseller" ? ResellerInvoice : Invoice).findOne(filter).lean();
     if (!invoice) return res.status(404).json({ success: false, message: "Invoice not found." });
+    if ((kind === "reseller" ? invoice.paymentStatus : invoice.status) !== "paid") {
+      return res.status(409).json({ success: false, message: "The invoice can be downloaded after payment is confirmed." });
+    }
     const recipient = kind === "reseller" ? await Partner.findById(invoice.partnerId).lean() : await Customer.findById(invoice.customerId).lean();
     const number = invoice.invoiceNumber || `INV-${invoice._id}`;
     const pdf = new PDFDocument({ size: "A4", margin: 50 });

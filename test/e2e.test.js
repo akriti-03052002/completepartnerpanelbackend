@@ -1835,21 +1835,26 @@ test("partner teammates: role permissions, dashboard privacy and current access 
 test("invoice downloads are PDFs scoped to the account and billing permissions", async () => {
   const { Invoice, Customer, PartnerUser } = require("../models/Index");
   const ResellerInvoice = require("../models/ResellerInvoice");
-  const resellerInvoice = await ResellerInvoice.findOne({ partnerId: state.partners.reseller.id });
+  const resellerInvoice = await ResellerInvoice.findOne({ partnerId: state.partners.reseller.id, paymentStatus: "paid" });
   assert.ok(resellerInvoice);
   const pdf = await api().get(`/api/partner/reseller/invoices/${resellerInvoice._id}/download`).set(as(state.partners.reseller.token));
   assert.equal(pdf.status, 200); assert.match(pdf.headers["content-type"], /application\/pdf/); assert.match(pdf.headers["content-disposition"], /attachment/);
   expectStatus(await api().get(`/api/admin/reseller/invoices/${resellerInvoice._id}/download`).set(admin()), 200, "admin invoice PDF");
+  const unpaid = await ResellerInvoice.create({ ...resellerInvoice.toObject(), _id: new mongoose.Types.ObjectId(), invoiceNumber: "PENDING-DOWNLOAD-TEST", purchaseOrderId: new mongoose.Types.ObjectId(), paymentStatus: "pending" });
+  expectStatus(await api().get(`/api/partner/reseller/invoices/${unpaid._id}/download`).set(as(state.partners.reseller.token)), 409, "pending invoice cannot be downloaded");
+  expectStatus(await api().get(`/api/admin/reseller/invoices/${unpaid._id}/download`).set(admin()), 409, "admin pending invoice cannot be downloaded");
   const foreign = await ResellerInvoice.create({ ...resellerInvoice.toObject(), _id: new mongoose.Types.ObjectId(), invoiceNumber: "OTHER-PARTNER-INVOICE", purchaseOrderId: new mongoose.Types.ObjectId(), partnerId: state.partners.vendor.id });
   expectStatus(await api().get(`/api/partner/reseller/invoices/${foreign._id}/download`).set(as(state.partners.reseller.token)), 404, "foreign invoice denied");
   const sales = await PartnerUser.findOne({ email: "reseller-sales-permissions@example.com" });
   sales.permissions = require("../config/roles").ROLE_PERMISSIONS.sales; await sales.save();
   const token = require("jsonwebtoken").sign({ userId: sales._id, sessionVersion: sales.auth.sessionVersion || 0 }, process.env.JWT_SECRET);
   expectStatus(await api().get(`/api/partner/reseller/invoices/${resellerInvoice._id}/download`).set(as(token)), 403, "sales cannot download billing");
-  const invoice = await Invoice.findOne(); assert.ok(invoice);
+  const invoice = await Invoice.findOne({ status: "paid" }); assert.ok(invoice);
   const customer = await Customer.findById(invoice.customerId);
   const customerToken = require("jsonwebtoken").sign({ customerId: customer._id, sessionVersion: customer.auth.sessionVersion || 0 }, process.env.JWT_SECRET);
   expectStatus(await api().get(`/api/customer/invoices/${invoice._id}/download`).set(as(customerToken)), 200, "customer invoice PDF");
+  const pendingCustomerInvoice = await Invoice.create({ customerId: customer._id, amount: 500, status: "issued" });
+  expectStatus(await api().get(`/api/customer/invoices/${pendingCustomerInvoice._id}/download`).set(as(customerToken)), 409, "unpaid customer invoice cannot be downloaded");
   const unrelated = await Invoice.create({ customerId: new mongoose.Types.ObjectId(), amount: 1 });
   expectStatus(await api().get(`/api/customer/invoices/${unrelated._id}/download`).set(as(customerToken)), 404, "foreign customer invoice denied");
 });
