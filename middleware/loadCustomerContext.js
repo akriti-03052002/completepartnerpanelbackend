@@ -14,6 +14,10 @@ const loadCustomerContext = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Customer account not found." });
     }
 
+    if ((req.customerAuth.sessionVersion || 0) !== (customer.auth.sessionVersion || 0)) {
+      return res.status(401).json({ success: false, message: "Your password changed. Please log in again." });
+    }
+
     if (customer.status === "suspended") {
       return res.status(403).json({ success: false, message: "This account has been suspended. Contact your vendor." });
     }

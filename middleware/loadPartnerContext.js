@@ -11,7 +11,7 @@ const loadPartnerContext = async (req, res, next) => {
 
     const partnerUser = await PartnerUser.findById(userId);
 
-    if (!partnerUser || partnerUser.status === "blocked") {
+    if (!partnerUser || partnerUser.status === "blocked" || (req.partnerAuth.sessionVersion || 0) !== (partnerUser.auth.sessionVersion || 0)) {
       return res.status(401).json({
         success: false,
         message: "Account no longer has access."

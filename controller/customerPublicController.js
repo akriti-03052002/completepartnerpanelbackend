@@ -12,7 +12,7 @@ const { sendCustomerSetPasswordEmail } = require("../services/customerAuth");
 ============================================================ */
 
 const generateToken = (customer) =>
-  jwt.sign({ customerId: customer._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+  jwt.sign({ customerId: customer._id, sessionVersion: customer.auth.sessionVersion || 0 }, process.env.JWT_SECRET, { expiresIn: "1d" });
 
 const lookupReferralCode = async (req, res) => {
   const { code } = req.params;
@@ -269,7 +269,8 @@ const resetCustomerPassword = async (req, res) => {
       "auth.resetTokenExpires": { $gt: new Date() }
     }, {
       $set: { "auth.passwordHash": passwordHash, "auth.emailVerified": true },
-      $unset: { "auth.resetTokenHash": "", "auth.resetTokenExpires": "" }
+      $unset: { "auth.resetTokenHash": "", "auth.resetTokenExpires": "" },
+      $inc: { "auth.sessionVersion": 1 }
     });
     if (!updated) return res.status(400).json({ success: false, message: "This link is invalid or has expired." });
 

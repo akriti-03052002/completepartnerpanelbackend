@@ -71,6 +71,7 @@ const changePassword = async (req, res) => {
     }
 
     customer.auth.passwordHash = await bcrypt.hash(newPassword, 12);
+    customer.auth.sessionVersion = (customer.auth.sessionVersion || 0) + 1;
     await customer.save();
 
     return res.json({ success: true, message: "Password changed." });

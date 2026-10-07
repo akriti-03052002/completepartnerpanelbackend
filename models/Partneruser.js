@@ -45,6 +45,7 @@ const PartnerUserSchema = new Schema(
     ],
 
     auth: {
+      sessionVersion: { type: Number, default: 0 },
       invitationClaim: { type: String, select: false },
       invitationClaimExpires: { type: Date, select: false },
       invitationPendingHash: { type: String, select: false },

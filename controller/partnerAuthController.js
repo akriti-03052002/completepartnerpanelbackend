@@ -15,7 +15,7 @@ const { sendMail } = require("../utils/mailer");
 
 const generateToken = (user) => {
   return jwt.sign(
-    { userId: user._id, partnerId: user.partnerId, role: user.role },
+    { userId: user._id, partnerId: user.partnerId, role: user.role, sessionVersion: user.auth.sessionVersion || 0 },
     process.env.JWT_SECRET,
     { expiresIn: "1d" }
   );
@@ -512,6 +512,7 @@ const resetPassword = async (req, res) => {
     }
 
     user.auth.passwordHash = await bcrypt.hash(password, 12);
+    user.auth.sessionVersion = (user.auth.sessionVersion || 0) + 1;
     user.auth.passwordSetupComplete = true;
     user.auth.invitationPendingHash = undefined;
     user.auth.invitationPendingExpires = undefined;

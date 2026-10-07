@@ -18,7 +18,7 @@ const customerPortalAuthMiddleware = async (req, res, next) => {
 
     const customer = await ResellerCustomer.findById(decoded.customerId);
 
-    if (!customer || customer.status === "cancelled") {
+    if (!customer || ["suspended", "cancelled"].includes(customer.status) || !customer.auth.emailVerified || (decoded.sessionVersion || 0) !== (customer.auth.sessionVersion || 0) || String(decoded.partnerId) !== String(customer.partnerId)) {
       return res.status(401).json({ success: false, message: "Invalid or expired session." });
     }
 

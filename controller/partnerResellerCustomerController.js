@@ -63,6 +63,11 @@ const createCustomer = asyncHandler(async (req, res) => {
     status: "pending"
   });
 
+  let emailSent = false;
+  if (customer.contactDetails.email) {
+    try { emailSent = await require("../services/resellerCustomerAuth").sendResellerCustomerLink(customer); }
+    catch (error) { console.error("Customer email delivery failed:", error.message); }
+  }
   await logActivity({
     partnerId: req.partner._id,
     performedByType: "partner_user",
@@ -74,7 +79,7 @@ const createCustomer = asyncHandler(async (req, res) => {
     req
   });
 
-  return res.status(201).json({ success: true, message: "Customer added.", data: customer });
+  return res.status(201).json({ success: true, message: emailSent ? "Customer added. An email was sent so they can verify and set their password." : "Customer added. They can request their verification email from the customer login page.", data: customer });
 });
 
 const updateCustomer = asyncHandler(async (req, res) => {
@@ -99,6 +104,12 @@ const updateCustomer = asyncHandler(async (req, res) => {
       if (existing) {
         return res.status(409).json({ success: false, message: "Another customer already uses this email." });
       }
+    }
+    if (normalizedEmail !== customer.contactDetails.email) {
+      customer.auth.emailVerified = false;
+      customer.auth.sessionVersion = (customer.auth.sessionVersion || 0) + 1;
+      customer.auth.verifyTokenHash = undefined;
+      customer.auth.verifyTokenExpires = undefined;
     }
     customer.contactDetails.email = normalizedEmail;
   }

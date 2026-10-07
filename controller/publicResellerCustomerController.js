@@ -33,7 +33,7 @@ const resellerInventory = require("../services/resellerInventory");
 const VERIFY_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const generateCustomerToken = (customer) =>
-  jwt.sign({ customerId: customer._id, partnerId: customer.partnerId }, process.env.CUSTOMER_JWT_SECRET, { expiresIn: "30d" });
+  jwt.sign({ customerId: customer._id, partnerId: customer.partnerId, sessionVersion: customer.auth.sessionVersion || 0 }, process.env.CUSTOMER_JWT_SECRET, { expiresIn: "30d" });
 
 const lookupReferralCode = async (req, res) => {
   const partner = await Partner.findOne({
@@ -137,11 +137,11 @@ const registerViaReferral = asyncHandler(async (req, res) => {
 const verifyAndSetPassword = asyncHandler(async (req, res) => {
   const { token, password } = req.body;
 
-  if (!token) {
+  if (typeof token !== "string" || !token) {
     return res.status(400).json({ success: false, message: "Missing verification token." });
   }
 
-  if (!password || password.length < 8) {
+  if (typeof password !== "string" || password.length < 8) {
     return res.status(400).json({ success: false, message: "Password must be at least 8 characters." });
   }
 
@@ -156,23 +156,26 @@ const verifyAndSetPassword = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: "This verification link is invalid or has expired." });
   }
 
-  customer.auth.passwordHash = await bcrypt.hash(password, 12);
-  customer.auth.emailVerified = true;
-  customer.auth.verifyTokenHash = undefined;
-  customer.auth.verifyTokenExpires = undefined;
-  await customer.save();
+  if (["suspended", "cancelled"].includes(customer.status)) return res.status(403).json({ success: false, message: "This account is unavailable. Contact your reseller." });
+  const passwordHash = await bcrypt.hash(password, 12);
+  const updated = await ResellerCustomer.findOneAndUpdate({ _id: customer._id, "auth.verifyTokenHash": tokenHash, "auth.verifyTokenExpires": { $gt: new Date() }, status: { $nin: ["suspended", "cancelled"] } }, {
+    $set: { "auth.passwordHash": passwordHash, "auth.emailVerified": true },
+    $unset: { "auth.verifyTokenHash": "", "auth.verifyTokenExpires": "" },
+    $inc: { "auth.sessionVersion": 1 }
+  }, { returnDocument: "after" });
+  if (!updated) return res.status(400).json({ success: false, message: "This verification link is invalid or has expired." });
 
   return res.json({
       success: true,
       message: "Email verified and password set — you can log in now.",
-      data: { token: generateCustomerToken(customer) }
+      data: { token: generateCustomerToken(updated) }
     });
 });
 
 const loginCustomer = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || !password) {
+  if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password) {
     return res.status(400).json({ success: false, message: "Email and password are required." });
   }
 
@@ -182,6 +185,8 @@ const loginCustomer = asyncHandler(async (req, res) => {
   if (!customer || !customer.auth?.passwordHash) {
     return res.status(401).json({ success: false, message: "Invalid email or password." });
   }
+
+  if (["suspended", "cancelled"].includes(customer.status)) return res.status(403).json({ success: false, message: "This account is unavailable. Contact your reseller." });
 
   if (!customer.auth.emailVerified) {
     return res.status(403).json({ success: false, message: "Verify your email first using the link we sent you." });
@@ -351,7 +356,18 @@ const updateMyScreen = asyncHandler(async (req, res) => {
   return res.json({ success: true, data: screen });
 });
 
+const requestPasswordLink = asyncHandler(async (req, res) => {
+  if (typeof req.body.email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email.trim())) return res.status(400).json({ success: false, message: "Enter a valid email address." });
+  const customer = await ResellerCustomer.findOne({ "contactDetails.email": req.body.email.trim().toLowerCase() });
+  if (customer && !["suspended", "cancelled"].includes(customer.status)) {
+    const delivered = await require("../services/resellerCustomerAuth").sendResellerCustomerLink(customer);
+    if (!delivered) return res.status(503).json({ success: false, message: "Email delivery is unavailable. Try again later." });
+  }
+  return res.json({ success: true, message: "If this email has an available account, a verification or password link has been sent. Check your inbox and spam folder." });
+});
+
 module.exports = {
+  requestPasswordLink,
   lookupReferralCode,
   registerViaReferral,
   verifyAndSetPassword,

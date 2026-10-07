@@ -65,6 +65,17 @@ const removeTempFile = (filePath) => fs.promises.unlink(filePath).catch(() => {}
  */
 const storeUploadedFile = async (multerFile, subfolder) => {
   try {
+    const header = Buffer.alloc(8);
+    const handle = await fs.promises.open(multerFile.path, "r");
+    try { await handle.read(header, 0, 8, 0); } finally { await handle.close(); }
+    const detected = header.subarray(0, 5).toString() === "%PDF-" ? "application/pdf"
+      : header.equals(Buffer.from([137,80,78,71,13,10,26,10])) ? "image/png"
+      : header[0] === 255 && header[1] === 216 && header[2] === 255 ? "image/jpeg" : null;
+    if (!detected || detected !== multerFile.mimetype) {
+      const error = new Error("The file contents do not match a supported PDF, PNG or JPG. Choose a valid document.");
+      error.statusCode = 400;
+      throw error;
+    }
     const result = await client().uploader.upload(multerFile.path, {
       ...UPLOAD_OPTIONS,
       public_id: publicIdFor(subfolder, multerFile.filename)
