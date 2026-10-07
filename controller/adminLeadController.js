@@ -41,18 +41,23 @@ const listLeads = async (req, res) => {
   if (partnerId) filter.partnerId = affiliatePartners.some((id) => String(id) === partnerId) ? partnerId : { $in: [] };
 
   const { page, limit, skip } = pagination(req.query);
-  const [leads, planPrices, total] = await Promise.all([
+  const [leads, planPrices, total, summaryRows] = await Promise.all([
     PartnerReferral.find(filter)
       .sort({ updatedAt: -1, _id: -1 }).skip(skip).limit(limit)
       .populate("partnerId", "partnerCode legalEntity.businessName primaryContact.name")
       .lean(),
     getPlanPrices(),
-    PartnerReferral.countDocuments(filter)
+    PartnerReferral.countDocuments(filter),
+    PartnerReferral.aggregate([
+      { $match: { partnerId: filter.partnerId } },
+      { $group: { _id: "$status", count: { $sum: 1 }, value: { $sum: "$closure.dealValue" } } }
+    ])
   ]);
 
   return res.json({
     success: true,
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    summary: Object.fromEntries(summaryRows.map((row) => [row._id, { count: row.count, value: row.value }])),
     planPrices,
     pricePerScreen: planPrices.basic,
     data: leads.map((lead) => ({

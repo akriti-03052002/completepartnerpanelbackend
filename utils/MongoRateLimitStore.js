@@ -10,7 +10,7 @@ module.exports = class MongoRateLimitStore {
       hits: { $cond: [expired, 1, { $add: [{ $ifNull: ["$hits", 0] }, 1] }] },
       resetTime: { $cond: [expired, new Date(now.getTime() + this.windowMs), "$resetTime"] }
     } }];
-    const options = { upsert: true, new: true, updatePipeline: true };
+    const options = { upsert: true, returnDocument: "after", updatePipeline: true };
     let counter;
     try { counter = await Counter.findOneAndUpdate({ _id: this.prefix + key }, update, options).lean(); }
     catch (error) {
