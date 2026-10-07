@@ -168,7 +168,8 @@ const upsertSettlementSetting = async (req, res) => {
       { returnDocument: "after", upsert: true, runValidators: true }
     );
 
-    return res.json({ success: true, message: "Settlement setting saved.", data: setting });
+    const warning = await require("../services/refreshExistingAgreement")(partnerId, req.adminUser._id);
+    return res.json({ success: true, message: warning || "Payment settings saved. Any existing agreement has been updated.", data: setting });
   } catch (error) {
     return res.status(400).json({ success: false, message: error.message });
   }

@@ -103,13 +103,6 @@ const downloadDocument = async (req, res) => {
       return res.status(404).json({ success: false, message: "Document not found." });
     }
 
-    // Once the account is fully verified, the underlying KYC proofs are no
-    // longer needed on the partner's side — only the Partner Agreement
-    // (their actual contract) stays downloadable.
-    if (req.partner.status === "active" && document.documentType !== "partner_agreement") {
-      return res.status(403).json({ success: false, message: "This document is no longer available for download once your account is verified." });
-    }
-
     if (!(await sendStoredFile(res, document.file))) {
       return res.status(404).json({ success: false, message: "File not found on server." });
     }

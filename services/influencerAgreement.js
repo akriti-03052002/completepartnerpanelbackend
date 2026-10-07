@@ -3,6 +3,7 @@ const path = require("path");
 const PDFDocument = require("pdfkit");
 const { SettlementSetting } = require("../models/Index");
 const { getAgreementTemplate } = require("./agreementTemplate");
+const agreementPaymentSchedule = require("./agreementPaymentSchedule");
 
 const LOGO_PATH = path.join(__dirname, "..", "assets", "spotx-logo.png");
 const LOGO_ASPECT = 789 / 307; // actual pixel dimensions of assets/spotx-logo.png
@@ -130,6 +131,9 @@ const renderAgreementPdf = (partner, template, settlementSetting) => new Promise
   doc.text(`Address: ${formatAddress(partner.address)}`);
   doc.text(`Email: ${partner.primaryContact.email}`);
   if (partner.primaryContact.phone) doc.text(`Phone: ${partner.primaryContact.phone}`);
+
+  heading("Current payout settings");
+  body(agreementPaymentSchedule(settlementSetting));
 
   // ---- Admin-written sections ----
   for (const section of template.sections) {

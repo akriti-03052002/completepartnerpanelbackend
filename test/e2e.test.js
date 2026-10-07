@@ -683,6 +683,8 @@ test("admin: dashboard stats, partner pages, per-partner agreement terms, config
   expectStatus(await api().put("/api/admin/config/settlement-settings").set(admin()).send({ partnerId: affiliateId, settlementType: "monthly", settlementDay: 5 }), 200, "payout schedule");
   const schedule = expectStatus(await api().get("/api/admin/config/settlement-settings").query({ partnerId: affiliateId }).set(admin()), 200, "payout schedule read");
   assert.equal(schedule.data.length, 1);
+  const currentTerms = expectStatus(await api().get(`/api/admin/partners/${affiliateId}/agreement-terms`).set(admin()), 200, "current payout terms");
+  assert.match(currentTerms.data.sections.find((s) => s.key === "payment").value, /Payout cycle: monthly/);
 
   for (const path of ["/api/admin/config/commission-rules", "/api/admin/config/programs", "/api/admin/config/tiers", "/api/admin/config/screen-pricing",
     "/api/admin/config/payment-gateway", "/api/admin/commissions", "/api/admin/settlements", "/api/admin/documents/pending", "/api/admin/social-media/accounts", "/api/admin/opportunities"]) {
@@ -733,7 +735,7 @@ test("uploads: wrong file type is a clear 400, and a partner's KYC download is c
 
   const docs = expectStatus(await api().get("/api/partner/documents").set(as(p.token)), 200, "documents");
   const pan = docs.data.find((d) => d.documentType === "pan_card");
-  assert.equal((await api().get(`/api/partner/documents/${pan._id}/download`).set(as(p.token))).status, 403);
+  assert.equal((await api().get(`/api/partner/documents/${pan._id}/download`).set(as(p.token))).status, 200);
   assert.equal((await api().get(`/api/admin/documents/${pan._id}/download`).set(admin())).status, 200);
 });
 

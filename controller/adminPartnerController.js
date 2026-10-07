@@ -485,6 +485,7 @@ const updatePartnerProfile = async (req, res) => {
 
     applyProfileUpdate(partner, req.body);
     await partner.save();
+    const agreementWarning = await require("../services/refreshExistingAgreement")(partner._id, req.adminUser._id);
 
     await logActivity({
       partnerId: partner._id,
@@ -506,7 +507,7 @@ const updatePartnerProfile = async (req, res) => {
       entityId: partner._id
     });
 
-    return res.json({ success: true, message: "Partner details saved.", data: partner });
+    return res.json({ success: true, message: agreementWarning || "Partner details saved. Any existing agreement has been updated.", data: partner });
   } catch (error) {
     console.error("updatePartnerProfile error:", error);
     return res.status(400).json({ success: false, message: error.message || "Something went wrong saving the details." });

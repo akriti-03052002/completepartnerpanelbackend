@@ -340,7 +340,7 @@ const loadAgreementContext = async (partner) => {
     ? ` Tax will be deducted at source at ${formatPercent(settlementSetting.tax.tdsRate)} as applicable under Indian tax law.`
     : " Applicable taxes, including tax deducted at source, will be withheld as required under Indian law.";
 
-  return { rule, settlementCadence, tdsNote, pricingPlan, billingConfig };
+  return { rule, settlementCadence, tdsNote: `${tdsNote} ${require("./agreementPaymentSchedule")(settlementSetting)}`, pricingPlan, billingConfig };
 };
 
 // Effective text for a section: the partner's saved override if they have
