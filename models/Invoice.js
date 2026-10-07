@@ -51,7 +51,8 @@ const InvoiceSchema = new Schema(
     customerPaymentId: {
       type: ObjectId,
       ref: "CustomerPayment"
-    }
+    },
+    manualPaymentReference: { type: String }
   },
   {
     timestamps: true
@@ -59,5 +60,6 @@ const InvoiceSchema = new Schema(
 );
 
 InvoiceSchema.index({ customerPaymentId: 1 }, { unique: true, sparse: true });
+InvoiceSchema.index({ manualPaymentReference: 1 }, { unique: true, sparse: true });
 
 module.exports = model("Invoice", InvoiceSchema);

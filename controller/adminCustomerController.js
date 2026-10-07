@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { Customer, Partner, Invoice } = require("../models/Index");
 const { generateCommissionForCustomerPayment } = require("../services/commissionEngine");
 const { refreshVendorScreenCount } = require("../services/tierAssignment");
@@ -44,6 +45,8 @@ const listCustomers = async (req, res) => {
 const markCustomerPaid = async (req, res) => {
   try {
     const { revenue, screenCount, plan, durationMonths } = req.body;
+    const paymentReference = String(req.body.paymentReference || "").trim().toUpperCase();
+    if (!paymentReference || paymentReference.length > 128) return res.status(400).json({ success: false, message: "Enter the payment transaction reference or cash receipt number (up to 128 characters)." });
 
     if (!revenue || revenue <= 0) {
       return res.status(400).json({ success: false, message: "A positive revenue amount is required to mark payment received." });
@@ -57,48 +60,58 @@ const markCustomerPaid = async (req, res) => {
       return res.status(400).json({ success: false, message: "Duration must be 1, 3, 6, or 12 months." });
     }
 
-    const customer = await Customer.findById(req.params.id);
+    const customer = await mongoose.connection.transaction(async session => {
+      const customer = await Customer.findById(req.params.id).session(session);
 
-    if (!customer) {
-      return res.status(404).json({ success: false, message: "Customer not found." });
+      if (!customer) {
+        throw Object.assign(new Error("Customer not found."), { status: 404 });
+      }
+
+      customer.subscription.status = "active";
+      if (screenCount !== undefined) customer.subscription.screenCount = Number(screenCount) || 0;
+      // Falls back to whatever plan they were already on (e.g. re-confirming
+      // a payment for an existing subscriber) rather than clearing it, since
+      // this field isn't collected on every admin action that touches status.
+      if (plan) customer.subscription.plan = plan;
+
+      // Opens/extends a fresh billing cycle the same length as a self-service
+      // purchase would (see customerSubscriptionController.computeChange) —
+      // this is the manual fallback for the same flow, just admin-confirmed
+      // instead of Razorpay-verified.
+      const resolvedDuration = durationMonths !== undefined ? Number(durationMonths) : (customer.subscription.durationMonths || 1);
+      customer.subscription.durationMonths = resolvedDuration;
+      customer.subscription.currentPeriodStart = new Date();
+      customer.subscription.currentPeriodEnd = new Date(Date.now() + CYCLE_DAYS * resolvedDuration * 24 * 60 * 60 * 1000);
+
+      await customer.save({ session });
+
+      // Same receipt a self-service checkout produces, so the customer's
+      // Billing page shows this payment too.
+      await Invoice.create([{
+        customerId: customer._id,
+        partnerId: customer.partnerId,
+        amount: Number(revenue),
+        currency: "INR",
+        status: "paid",
+        issuedAt: new Date(),
+        manualPaymentReference: paymentReference
+      }], { session });
+
+      return customer;
+    });
+
+    let commission, skipped;
+    try {
+      ({ commission, skipped } = await generateCommissionForCustomerPayment({
+        customer,
+        revenue: Number(revenue),
+        screenCount: customer.subscription.screenCount,
+        req,
+        adminUser: req.adminUser
+      }));
+    } catch {
+      return res.json({ success: true, message: "Payment and invoice recorded. Commission processing failed; contact finance to review it. Do not record this payment again.", data: { customer, commission: null } });
     }
-
-    customer.subscription.status = "active";
-    if (screenCount !== undefined) customer.subscription.screenCount = Number(screenCount) || 0;
-    // Falls back to whatever plan they were already on (e.g. re-confirming
-    // a payment for an existing subscriber) rather than clearing it, since
-    // this field isn't collected on every admin action that touches status.
-    if (plan) customer.subscription.plan = plan;
-
-    // Opens/extends a fresh billing cycle the same length as a self-service
-    // purchase would (see customerSubscriptionController.computeChange) —
-    // this is the manual fallback for the same flow, just admin-confirmed
-    // instead of Razorpay-verified.
-    const resolvedDuration = durationMonths !== undefined ? Number(durationMonths) : (customer.subscription.durationMonths || 1);
-    customer.subscription.durationMonths = resolvedDuration;
-    customer.subscription.currentPeriodStart = new Date();
-    customer.subscription.currentPeriodEnd = new Date(Date.now() + CYCLE_DAYS * resolvedDuration * 24 * 60 * 60 * 1000);
-
-    await customer.save();
-
-    // Same receipt a self-service checkout produces, so the customer's
-    // Billing page shows this payment too.
-    await Invoice.create({
-      customerId: customer._id,
-      partnerId: customer.partnerId,
-      amount: Number(revenue),
-      currency: "INR",
-      status: "paid",
-      issuedAt: new Date()
-    });
-
-    const { commission, skipped } = await generateCommissionForCustomerPayment({
-      customer,
-      revenue: Number(revenue),
-      screenCount: customer.subscription.screenCount,
-      req,
-      adminUser: req.adminUser
-    });
 
     const partner = await Partner.findById(customer.partnerId);
     if (partner) await refreshVendorScreenCount(partner);
@@ -110,8 +123,9 @@ const markCustomerPaid = async (req, res) => {
         : "Payment recorded. No new commission: the vendor's one-time commission for this customer was already earned on their first payment.";
     return res.json({ success: true, message, data: { customer, commission } });
   } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ success: false, message: "This payment reference has already been recorded. No new invoice was created." });
     console.error("markCustomerPaid error:", error);
-    return res.status(400).json({ success: false, message: error.message || "Something went wrong recording payment." });
+    return res.status(error.status || 400).json({ success: false, message: error.message || "Something went wrong recording payment." });
   }
 };
 

@@ -481,7 +481,7 @@ test("vendor: verified -> commission agreement -> customers -> payment -> commis
   assert.equal(adminCustomers.data.length, 2);
 
   // An admin confirms the customer's payment; that's what earns the vendor commission.
-  expectStatus(await api().patch(`/api/admin/customers/${direct.data._id}/mark-paid`).set(admin()).send({ revenue: 10000, screenCount: 4, plan: "basic", durationMonths: 1 }), 200, "mark customer paid");
+  expectStatus(await api().patch(`/api/admin/customers/${direct.data._id}/mark-paid`).set(admin()).send({ paymentReference: "DIRECT-TEST-RECEIPT", revenue: 10000, screenCount: 4, plan: "basic", durationMonths: 1 }), 200, "mark customer paid");
   const commissions = expectStatus(await api().get("/api/partner/commissions").set(as(p.token)), 200, "vendor commissions");
   assert.equal(commissions.data.length, 1);
   assert.equal(commissions.data[0].calculation.netCommission, 1500);
@@ -1342,8 +1342,9 @@ test("vendor commission: 10% one time per customer on what that customer paid; r
   const addCustomer = async (name) => expectStatus(await api().post("/api/partner/customers").set(as(p.token)).send({
     companyName: name, contactName: "Owner", email: `${name.toLowerCase().replace(/\W+/g, "")}@example.com`, phone: "9555500000"
   }), 201, `register ${name}`).data._id;
+  let manualPaymentSequence = 0;
   const pay = async (customerId, screens, price, plan) => expectStatus(await api().patch(`/api/admin/customers/${customerId}/mark-paid`).set(admin())
-    .send({ revenue: screens * price, screenCount: screens, plan, durationMonths: 1 }), 200, "customer pays");
+    .send({ paymentReference: `SCENARIO-${++manualPaymentSequence}`, revenue: screens * price, screenCount: screens, plan, durationMonths: 1 }), 200, "customer pays");
   const earnedFrom = async (customerId) => {
     const all = expectStatus(await api().get("/api/admin/commissions").query({ partnerId: p.id }).set(admin()), 200, "vendor commissions");
     return all.data.filter((c) => String(c.customerId?._id || c.customerId) === String(customerId)).map((c) => c.calculation.netCommission);
@@ -1857,4 +1858,23 @@ test("invoice downloads are PDFs scoped to the account and billing permissions",
   expectStatus(await api().get(`/api/customer/invoices/${pendingCustomerInvoice._id}/download`).set(as(customerToken)), 409, "unpaid customer invoice cannot be downloaded");
   const unrelated = await Invoice.create({ customerId: new mongoose.Types.ObjectId(), amount: 1 });
   expectStatus(await api().get(`/api/customer/invoices/${unrelated._id}/download`).set(as(customerToken)), 404, "foreign customer invoice denied");
+});
+
+
+test("manual customer receipts reject duplicate references and concurrent retries", async () => {
+  const { Customer, Invoice, PartnerCommission } = require("../models/Index");
+  const customer = await Customer.findOne({ partnerId: state.partners.vendor.id });
+  const url = `/api/admin/customers/${customer._id}/mark-paid`;
+  const body = { paymentReference: "UTR-DUPLICATE-TEST", revenue: 1000, screenCount: 1, plan: "basic", durationMonths: 1 };
+  const replies = await Promise.all([api().patch(url).set(admin()).send(body), api().patch(url).set(admin()).send(body)]);
+  assert.deepEqual(replies.map(r => r.status).sort(), [200, 409]);
+  assert.equal(await Invoice.countDocuments({ manualPaymentReference: body.paymentReference }), 1);
+  const updated = await Customer.findById(customer._id);
+  const commissions = await PartnerCommission.countDocuments({ customerId: customer._id });
+  expectStatus(await api().patch(url).set(admin()).send({ ...body, paymentReference: " utr-duplicate-test " }), 409, "normalized duplicate reference");
+  assert.equal(await PartnerCommission.countDocuments({ customerId: customer._id }), commissions);
+  assert.equal((await Customer.findById(customer._id)).subscription.currentPeriodEnd.getTime(), updated.subscription.currentPeriodEnd.getTime());
+  expectStatus(await api().patch(url).set(admin()).send({ ...body, paymentReference: "UTR-NEW-PAYMENT" }), 200, "genuine new payment");
+  assert.equal(await Invoice.countDocuments({ manualPaymentReference: "UTR-NEW-PAYMENT" }), 1);
+  expectStatus(await api().patch(url).set(admin()).send({ revenue: 1000 }), 400, "reference required");
 });
