@@ -48,7 +48,7 @@ test("lead pagination preserves whole-dataset overview totals", async () => {
   const Partner = require("../models/Partner");
   const Referral = require("../models/Partnerreferral");
   const partnerId = new mongoose.Types.ObjectId();
-  await Partner.collection.insertOne({ _id: partnerId, partnerType: "affiliate" });
+  await Partner.collection.insertOne({ _id: partnerId, partnerCode: "scale-affiliate", partnerType: "affiliate" });
   await Referral.collection.insertMany(Array.from({ length: 120 }, (_, i) => ({
     partnerId, status: i < 60 ? "won" : "new", updatedAt: new Date(i), closure: { dealValue: 10 }
   })));
@@ -65,7 +65,7 @@ test("submission pagination returns all-status counts without exposing social cr
   const Partner = require("../models/Partner");
   const Submission = require("../models/InfluencerContentSubmission");
   const partnerId = new mongoose.Types.ObjectId(), accountId = new mongoose.Types.ObjectId();
-  await Partner.collection.insertOne({ _id: partnerId, partnerType: "influencer", primaryContact: { name: "Test" },
+  await Partner.collection.insertOne({ _id: partnerId, partnerCode: "scale-influencer", partnerType: "influencer", primaryContact: { name: "Test" },
     socialAccounts: [{ _id: accountId, platform: "youtube", username: "test", accessTokenEncrypted: "secret" }] });
   await Submission.collection.insertMany(Array.from({ length: 120 }, (_, i) => ({
     partnerId, socialAccountId: accountId, status: i < 80 ? "pending" : "approved", createdAt: new Date(i)

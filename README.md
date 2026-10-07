@@ -169,3 +169,14 @@ The end-to-end suite starts its own in-memory MongoDB and stubs email, Cloudinar
 4. For social login, register `https://<your-render-service>/api/partner/social/{instagram|facebook|youtube}/callback` with each provider.
 
 Request logs are written to the console and to `logs/<date>.log`.
+
+
+### Scaling API instances
+
+Admin leads and social posts accept `page` and `limit` (default 50, maximum 100) and return `pagination` metadata. Leads also return whole-partner status summaries; social posts return status counts. The frontend uses these summaries for overview totals. Social review search and dropdown filters apply to the current page.
+
+Authentication, OTP and customer checkout limiters share atomic MongoDB counters across instances. Their collection has a TTL index to clean expired counters; window resets do not depend on TTL cleanup timing. All instances must use the same database. This adds a database write per rate-limited request.
+
+Social synchronization now uses a shared database lease, like billing, and streams partners through a cursor. Jobs still execute inside API processes; a dedicated worker and durable retry queue remain future improvements for heavier workloads.
+
+Run `node --test test/scalability.test.js` to verify pagination totals, shared counter concurrency, counter expiry, lease exclusion and social credential handling. Capacity has not been load-tested. Existing health endpoints and request timing logs help inspect behavior, but production latency percentiles, error-rate alerts and realistic load tests are still required before setting a capacity target.

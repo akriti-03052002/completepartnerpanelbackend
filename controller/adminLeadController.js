@@ -49,7 +49,7 @@ const listLeads = async (req, res) => {
     getPlanPrices(),
     PartnerReferral.countDocuments(filter),
     PartnerReferral.aggregate([
-      { $match: { partnerId: filter.partnerId } },
+      { $match: { partnerId: typeof filter.partnerId === "string" ? new mongoose.Types.ObjectId(filter.partnerId) : filter.partnerId } },
       { $group: { _id: "$status", count: { $sum: 1 }, value: { $sum: "$closure.dealValue" } } }
     ])
   ]);
