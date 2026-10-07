@@ -33,4 +33,6 @@ router.post("/subscription/checkout", checkoutLimiter, createCheckoutOrder);
 router.post("/subscription/verify", checkoutLimiter, verifyCheckoutPayment);
 router.post("/subscription/payment-failed", checkoutLimiter, recordCheckoutFailure);
 
+router.get("/invoices/:id/download", require("../controller/invoiceDownloadController").downloadInvoice("customer", "customer"));
+
 module.exports = router;

@@ -126,4 +126,14 @@ const getBillForSettlement = async (req, res) => {
   return res.json({ success: true, data: bill || null });
 };
 
-module.exports = { submitBill, getBillForSettlement };
+const downloadBill = async (req, res) => {
+  try {
+    const settlement = await PartnerSettlement.findOne({ _id: req.params.id, partnerId: req.partner._id });
+    if (!settlement) return res.status(404).json({ success: false, message: "Settlement not found." });
+    const bill = await PartnerSettlementBill.findOne({ settlementId: settlement._id });
+    if (!bill || !await require("../utils/fileStorage").sendStoredFile(res, bill.file)) return res.status(404).json({ success: false, message: "Bill file not found." });
+  } catch {
+    return res.status(500).json({ success: false, message: "Could not download the bill. Please try again." });
+  }
+};
+module.exports = { submitBill, getBillForSettlement, downloadBill };

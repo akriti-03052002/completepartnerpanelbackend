@@ -46,4 +46,6 @@ router.patch("/license-orders/:id/reject", rejectLicenseOrder);
 router.patch("/invoices/:id/payment-mode", setInvoicePaymentMode);
 router.patch("/invoices/:id/verify-offline", verifyInvoiceOfflinePayment);
 
+router.get("/invoices/:id/download", require("../controller/invoiceDownloadController").downloadInvoice("reseller", "admin"));
+
 module.exports = router;

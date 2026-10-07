@@ -69,4 +69,6 @@ router.get("/prepayment", requirePermission("reseller:billing:view"), getPrepaym
 router.post("/prepayment/pay", requirePermission("reseller:billing:pay"), createPrepaymentOrder);
 router.post("/prepayment/verify", requirePermission("reseller:billing:pay"), verifyPrepaymentPayment);
 
+router.get("/invoices/:id/download", requirePermission("reseller:billing:view"), require("../controller/invoiceDownloadController").downloadInvoice("reseller", "partner"));
+
 module.exports = router;

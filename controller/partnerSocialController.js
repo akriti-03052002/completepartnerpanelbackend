@@ -53,7 +53,7 @@ const pickReturnOrigin = (value) => {
   return allowed.includes("*") || allowed.includes(origin) ? origin : undefined;
 };
 
-const redirectUri = (platform) => `${process.env.API_PUBLIC_URL || "http://localhost:5000"}/api/partner/social/${platform}/callback`;
+const redirectUri = (platform) => `${(process.env.API_PUBLIC_URL || "http://localhost:5000").replace(/\/+$/, "")}/api/partner/social/${platform}/callback`;
 
 const startConnection = (req, res) => {
   const platform = req.params.platform;

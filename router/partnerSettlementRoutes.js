@@ -10,6 +10,7 @@ const { requireFileStorage } = require("../utils/fileStorage");
 router.get("/", requirePermission("settlements:view"), listSettlements);
 router.get("/:id", requirePermission("settlements:view"), getSettlementDetail);
 router.get("/:id/bill", requirePermission("settlements:view"), getBillForSettlement);
+router.get("/:id/bill/download", requirePermission("settlements:view"), require("../controller/partnerSettlementBillController").downloadBill);
 router.get("/:id/history", requirePermission("settlements:view"), getSettlementHistoryForPartner);
 router.post("/:id/bill", requirePermission("settlements:view"), requireFileStorage, uploadBill.single("file"), submitBill);
 
