@@ -450,6 +450,21 @@ test("vendor: verified -> commission agreement -> customers -> payment -> commis
     referralCode, companyName: "Self Signup Co", contactName: "Self", email: "self@example.com", phone: "9333333333", password: "password123"
   }), 201, "customer self-registers");
   assert.ok(selfRegistered);
+  assert.equal(selfRegistered.data.token, undefined, "registration cannot create an unverified session");
+  expectStatus(await api().post("/api/public/customers/login").send({ email: "self@example.com", password: "password123" }), 403, "unverified login blocked");
+  const verificationToken = lastMailTo("self@example.com").text.match(/\/customer\/reset-password\/([a-f0-9]+)/)[1];
+  expectStatus(await api().post("/api/public/customers/reset-password/invalid").send({ password: "password123" }), 400, "invalid verification link");
+  expectStatus(await api().post(`/api/public/customers/reset-password/${verificationToken}`).send({ password: "short" }), 400, "short password rejected");
+  const CustomerModel = require("../models/Customer");
+  await CustomerModel.updateOne({ email: "self@example.com" }, { $set: { "auth.resetTokenExpires": new Date(Date.now() - 1000) } });
+  expectStatus(await api().post(`/api/public/customers/reset-password/${verificationToken}`).send({ password: "password123" }), 400, "expired verification link");
+  expectStatus(await api().post("/api/public/customers/forgot-password").send({ email: "self@example.com" }), 200, "resend verification");
+  const resentToken = lastMailTo("self@example.com").text.match(/\/customer\/reset-password\/([a-f0-9]+)/)[1];
+  expectStatus(await api().post(`/api/public/customers/reset-password/${verificationToken}`).send({ password: "password123" }), 400, "resend invalidates old link");
+  expectStatus(await api().post(`/api/public/customers/reset-password/${resentToken}`).send({ password: "password123" }), 200, "self-registration email verified");
+  expectStatus(await api().post(`/api/public/customers/reset-password/${verificationToken}`).send({ password: "password123" }), 400, "verification link cannot be reused");
+  expectStatus(await api().post("/api/public/customers/login").send({ email: "self@example.com", password: "wrongpass" }), 401, "wrong password");
+  expectStatus(await api().post("/api/public/customers/register").send({ referralCode, companyName: "Duplicate", email: " SELF@example.com ", password: "password123" }), 409, "duplicate normalized email");
 
   const login = expectStatus(await api().post("/api/public/customers/login").send({ email: "self@example.com", password: "password123" }), 200, "customer login");
   const customerToken = login.token || login.data?.token;
@@ -583,10 +598,13 @@ test("reseller customers: self-register by referral code, verify by email, manag
     referralCode: code, companyName: "Portal Customer", name: "Portal User", email: "portal@example.com", phone: "9555555555"
   }), 201, "reseller customer self-register");
 
+  expectStatus(await api().post("/api/public/reseller-customers/login").send({ email: "portal@example.com", password: "password123" }), 401, "reseller customer cannot login before verification");
+  expectStatus(await api().post("/api/public/reseller-customers/verify").send({ token: "invalid", password: "password123" }), 400, "invalid reseller verification");
   const mail = lastMailTo("portal@example.com");
   assert.ok(mail, "a verification email is sent");
   const token = (mail.text || mail.html).match(/\/reseller\/customer\/verify\/([A-Za-z0-9_-]+)/)[1];
   expectStatus(await api().post("/api/public/reseller-customers/verify").send({ token, password: "password123" }), 200, "verify + set password");
+  expectStatus(await api().post("/api/public/reseller-customers/verify").send({ token, password: "password123" }), 400, "reseller verification cannot be reused");
   const login = expectStatus(await api().post("/api/public/reseller-customers/login").send({ email: "portal@example.com", password: "password123" }), 200, "portal login");
   const portalToken = login.token || login.data?.token;
   assert.ok(portalToken);

@@ -18,6 +18,10 @@ const loadCustomerContext = async (req, res, next) => {
       return res.status(403).json({ success: false, message: "This account has been suspended. Contact your vendor." });
     }
 
+    if (customer.auth.emailVerified === false) {
+      return res.status(403).json({ success: false, message: "Verify your email before accessing your account." });
+    }
+
     req.customer = customer;
     next();
   } catch (error) {

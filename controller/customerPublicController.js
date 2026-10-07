@@ -40,7 +40,7 @@ const registerCustomer = async (req, res) => {
       country, state, city, addressLine1, addressLine2, pincode
     } = req.body;
 
-    if (!referralCode || !companyName || !email || !password) {
+    if (typeof referralCode !== "string" || !referralCode.trim() || typeof companyName !== "string" || !companyName.trim() || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || typeof password !== "string" || !password) {
       return res.status(400).json({ success: false, message: "Referral code, company name, email and password are required." });
     }
 
@@ -85,10 +85,17 @@ const registerCustomer = async (req, res) => {
       },
       partnerId: partner._id,
       registrationSource: "referral_code",
-      auth: { passwordHash },
+      auth: { passwordHash, emailVerified: false },
       trial: { startedAt: now, endsAt: trialEndsAt },
       subscription: { status: "trial" }
     });
+
+    let emailSent = false;
+    try {
+      emailSent = await sendCustomerSetPasswordEmail(customer, { isNewAccount: true });
+    } catch (error) {
+      console.error("Customer verification email delivery failed:", error.message);
+    }
 
     await logActivity({
       partnerId: partner._id,
@@ -110,9 +117,10 @@ const registerCustomer = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "Registration successful. Your 30-day trial has started.",
+      message: emailSent ? "Check your email to verify your address and confirm your password before logging in." : "Account created, but the verification email could not be sent. Use the resend link to try again.",
       data: {
-        token: generateToken(customer),
+        emailSent,
+        requiresEmailVerification: true,
         customer: {
           id: customer._id,
           companyName: customer.companyName,
@@ -127,6 +135,7 @@ const registerCustomer = async (req, res) => {
       }
     });
   } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ success: false, message: "An account with this email already exists." });
     console.error("registerCustomer error:", error);
     return res.status(500).json({ success: false, message: "Something went wrong during registration." });
   }
@@ -136,7 +145,7 @@ const loginCustomer = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password) {
       return res.status(400).json({ success: false, message: "Email and password are required." });
     }
 
@@ -163,6 +172,10 @@ const loginCustomer = async (req, res) => {
 
     if (!match) {
       return res.status(401).json({ success: false, message: "Invalid email or password." });
+    }
+
+    if (customer.auth.emailVerified === false) {
+      return res.status(403).json({ success: false, code: "EMAIL_NOT_VERIFIED", message: "Verify your email first. Use the resend verification link if needed." });
     }
 
     customer.auth.lastLoginAt = new Date();
@@ -204,7 +217,7 @@ const forgotCustomerPassword = async (req, res) => {
   try {
     const { email } = req.body;
 
-    if (!email) {
+    if (typeof email !== "string" || !email.trim()) {
       return res.status(400).json({ success: false, message: "Email is required." });
     }
 
@@ -219,7 +232,8 @@ const forgotCustomerPassword = async (req, res) => {
       return res.json(genericResponse);
     }
 
-    await sendCustomerSetPasswordEmail(customer, { isNewAccount: false });
+    const delivered = await sendCustomerSetPasswordEmail(customer, { isNewAccount: customer.auth.emailVerified === false });
+    if (!delivered) return res.status(503).json({ success: false, message: "Email delivery is unavailable. Please try again later or contact support." });
 
     return res.json(genericResponse);
   } catch (error) {
@@ -233,7 +247,7 @@ const resetCustomerPassword = async (req, res) => {
     const { token } = req.params;
     const { password } = req.body;
 
-    if (!password || password.length < 8) {
+    if (typeof password !== "string" || password.length < 8) {
       return res.status(400).json({ success: false, message: "Password must be at least 8 characters." });
     }
 
@@ -248,12 +262,18 @@ const resetCustomerPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: "This link is invalid or has expired." });
     }
 
-    customer.auth.passwordHash = await bcrypt.hash(password, 12);
-    customer.auth.resetTokenHash = undefined;
-    customer.auth.resetTokenExpires = undefined;
-    await customer.save();
+    const passwordHash = await bcrypt.hash(password, 12);
+    const updated = await Customer.findOneAndUpdate({
+      _id: customer._id,
+      "auth.resetTokenHash": tokenHash,
+      "auth.resetTokenExpires": { $gt: new Date() }
+    }, {
+      $set: { "auth.passwordHash": passwordHash, "auth.emailVerified": true },
+      $unset: { "auth.resetTokenHash": "", "auth.resetTokenExpires": "" }
+    });
+    if (!updated) return res.status(400).json({ success: false, message: "This link is invalid or has expired." });
 
-    return res.json({ success: true, message: "Password set successfully. You can now log in." });
+    return res.json({ success: true, message: "Email verified and password set. You can now log in." });
   } catch (error) {
     console.error("resetCustomerPassword error:", error);
     return res.status(500).json({ success: false, message: "Something went wrong setting the password." });

@@ -45,7 +45,7 @@ const createCustomer = async (req, res) => {
       country, state, city, addressLine1, addressLine2, pincode
     } = req.body;
 
-    if (!companyName || !email) {
+    if (typeof companyName !== "string" || !companyName.trim() || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ success: false, message: "Company name and email are required." });
     }
 
@@ -74,6 +74,7 @@ const createCustomer = async (req, res) => {
       },
       partnerId: req.partner._id,
       registrationSource: "partner_direct",
+      auth: { emailVerified: false },
       trial: { startedAt: now, endsAt: trialEndsAt },
       subscription: { status: "trial" }
     });

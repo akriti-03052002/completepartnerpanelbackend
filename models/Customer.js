@@ -69,6 +69,8 @@ const CustomerSchema = new Schema(
     },
 
     auth: {
+      // Missing on historical accounts; new registrations explicitly start unverified.
+      emailVerified: { type: Boolean },
       passwordHash: {
         type: String,
         select: false

@@ -18,19 +18,20 @@ const sendCustomerSetPasswordEmail = async (customer, { isNewAccount = false } =
   customer.auth.resetTokenExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
   await customer.save();
 
-  const link = `${process.env.CLIENT_URL || "http://localhost:5173"}/customer/reset-password/${rawToken}`;
-  const subject = isNewAccount ? "Set your SPOTX Customer password" : "Reset your SPOTX Customer password";
+  const link = `${(process.env.CLIENT_URL || "http://localhost:5173").replace(/\/+$/, "")}/customer/reset-password/${rawToken}`;
+  const subject = isNewAccount ? "Verify your SPOTX Customer email" : "Reset your SPOTX Customer password";
 
-  await sendMail({
+  const result = await sendMail({
     to: customer.email,
     subject,
-    text: `${isNewAccount ? "Your SPOTX Customer account is ready. Set your password to log in" : "Reset your SPOTX Customer password"}: ${link}\n\nThis link expires in 7 days.`,
+    text: `${isNewAccount ? "Your SPOTX Customer account is ready. Verify your email and confirm your password" : "Reset your SPOTX Customer password"}: ${link}\n\nThis link expires in 7 days.`,
     html: `
       <p>${isNewAccount ? "Your SPOTX Customer account is ready." : "We received a request to reset your SPOTX Customer account password."}</p>
-      <p><a href="${link}">${isNewAccount ? "Set your password to log in" : "Reset your password"}</a></p>
+      <p><a href="${link}">${isNewAccount ? "Verify your email and confirm your password" : "Reset your password"}</a></p>
       <p>This link expires in 7 days.${isNewAccount ? "" : " If you didn't request this, ignore this email."}</p>
     `
   });
+  return result?.delivered === true;
 };
 
 module.exports = { sendCustomerSetPasswordEmail };
