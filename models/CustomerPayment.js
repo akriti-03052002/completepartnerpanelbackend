@@ -98,6 +98,7 @@ const CustomerPaymentSchema = new Schema(
     // Guards against generating commission twice if the webhook and the
     // browser's own /verify call both land (see applyPaidCustomerPayment's
     // atomic status:"created" -> "paid" claim, which this mirrors).
+    commissionRecoveryError: { type: String, default: "" },
     commissionGenerated: {
       type: Boolean,
       default: false
@@ -107,5 +108,7 @@ const CustomerPaymentSchema = new Schema(
     timestamps: true
   }
 );
+
+CustomerPaymentSchema.index({ status: 1, commissionGenerated: 1, updatedAt: 1 });
 
 module.exports = model("CustomerPayment", CustomerPaymentSchema);

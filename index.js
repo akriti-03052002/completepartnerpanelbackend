@@ -232,6 +232,9 @@ const start = () => connectDB().then(() => {
     .catch((error) => logger.error("Settling previously approved commissions failed:", error));
   const runSocialSync = () => require("./utils/runWithLease")("social-sync", syncAllStaleAccounts).catch((error) => console.error("Social sync failed:", error.message));
   runSocialSync();
+  const recoverCommissions = () => require("./utils/runWithLease")("customer-commission-recovery", require("./services/customerPaymentFulfillment").recoverPendingCustomerCommissions).catch((error) => logger.error("Customer commission recovery failed:", error));
+  recoverCommissions();
+  const commissionRecoveryTimer = setInterval(recoverCommissions, 60000);
   const socialTimer = setInterval(runSocialSync, 6 * 60 * 60 * 1000);
   let shuttingDown = false;
   const shutdown = () => {
@@ -239,6 +242,7 @@ const start = () => connectDB().then(() => {
     shuttingDown = true;
     stopResellerScheduler();
     clearInterval(socialTimer);
+    clearInterval(commissionRecoveryTimer);
     const timeout = setTimeout(() => process.exit(1), 30000);
     timeout.unref();
     server.close(async () => {

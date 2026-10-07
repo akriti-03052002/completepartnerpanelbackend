@@ -351,7 +351,7 @@ const verifyCheckoutPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: "Payment record not found." });
     }
 
-    if (customerPayment.status === "paid") {
+    if (customerPayment.status === "paid" && customerPayment.commissionGenerated) {
       // Already fulfilled (e.g. the webhook beat this call to it) — treat
       // as success rather than erroring the customer over a race.
       return res.json({ success: true, message: "Payment already confirmed.", data: { subscription: req.customer.subscription } });
@@ -367,9 +367,11 @@ const verifyCheckoutPayment = async (req, res) => {
     // failure must not block this (possibly successful) one.
 
     if (!(await verifyPaymentSignature({ orderId, paymentId, signature }))) {
-      customerPayment.status = "failed";
-      customerPayment.razorpay.failureReason = "Signature verification failed.";
-      await customerPayment.save();
+      if (customerPayment.status !== "paid") {
+        customerPayment.status = "failed";
+        customerPayment.razorpay.failureReason = "Signature verification failed.";
+        await customerPayment.save();
+      }
       return res.status(400).json({ success: false, message: "Payment could not be verified. If any amount was debited, it will be refunded automatically by Razorpay." });
     }
 

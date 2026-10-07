@@ -187,3 +187,10 @@ Run `node --test test/scalability.test.js` to verify pagination totals, shared c
 Vendors now earn strictly from their active `PartnerCommissionAssignment`. Vendor tier and generic rules are ignored, and the agreement uses the same assignment. Configure each vendor's commission from their admin partner record before processing customer payments. Missing assignments stop commission generation with an explicit error; no fallback rate is inferred. Existing ledger entries, settlements and stored tier records are preserved. Active agreements are not automatically rewritten: reissue them through the existing admin action if their wording needs updating.
 
 Vendor activation and customer payment/subscription changes still refresh screen counts, but no longer assign tiers. The public vendor description now describes individually assigned terms, and admin configuration contains only Screen Pricing.
+
+
+### Captured payment recovery
+
+Customer payment fulfillment commits the subscription and receipt in one transaction, then generates commissions, updates partner totals and marks commission completion in a second transaction. A missing commission assignment leaves the payment paid and its commission pending. Confirmation/webhook retries resume only the unfinished commission; a background sweep retries up to 100 pending payments every minute. Recovery errors are recorded on `CustomerPayment.commissionRecoveryError` and cleared on success.
+
+This path requires a MongoDB replica set or a sharded cluster supporting transactions (including Atlas). It deliberately does not fall back to non-transactional writes. Existing subscription changes are never reapplied during commission recovery.
