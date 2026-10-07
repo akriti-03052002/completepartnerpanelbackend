@@ -1,3 +1,4 @@
+const MongoRateLimitStore = require("../utils/MongoRateLimitStore");
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
@@ -13,6 +14,7 @@ const {
 const router = express.Router();
 
 const authLimiter = rateLimit({
+  store: new MongoRateLimitStore("partner-auth"),
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
@@ -23,6 +25,7 @@ const authLimiter = rateLimit({
 // Tighter than authLimiter — this one emails an address the caller doesn't
 // have to prove they own yet, so it's the more attractive spam target.
 const otpLimiter = rateLimit({
+  store: new MongoRateLimitStore("partner-otp"),
   windowMs: 15 * 60 * 1000,
   max: 5,
   standardHeaders: true,

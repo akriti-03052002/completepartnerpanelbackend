@@ -1,3 +1,4 @@
+const pagination = require("../utils/pagination");
 const mongoose = require("mongoose");
 const {
   Partner,
@@ -39,16 +40,19 @@ const listLeads = async (req, res) => {
   if (status) filter.status = status;
   if (partnerId) filter.partnerId = affiliatePartners.some((id) => String(id) === partnerId) ? partnerId : { $in: [] };
 
-  const [leads, planPrices] = await Promise.all([
+  const { page, limit, skip } = pagination(req.query);
+  const [leads, planPrices, total] = await Promise.all([
     PartnerReferral.find(filter)
-      .sort({ updatedAt: -1 })
+      .sort({ updatedAt: -1, _id: -1 }).skip(skip).limit(limit)
       .populate("partnerId", "partnerCode legalEntity.businessName primaryContact.name")
       .lean(),
-    getPlanPrices()
+    getPlanPrices(),
+    PartnerReferral.countDocuments(filter)
   ]);
 
   return res.json({
     success: true,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     planPrices,
     pricePerScreen: planPrices.basic,
     data: leads.map((lead) => ({

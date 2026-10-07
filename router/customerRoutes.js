@@ -1,3 +1,4 @@
+const MongoRateLimitStore = require("../utils/MongoRateLimitStore");
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 const router = express.Router();
@@ -10,6 +11,7 @@ const { getSubscription, createCheckoutOrder, verifyCheckoutPayment, recordCheck
 // external API usage) without getting in the way of a legitimate customer
 // retrying a declined payment a few times.
 const checkoutLimiter = rateLimit({
+  store: new MongoRateLimitStore("customer-checkout"),
   windowMs: 15 * 60 * 1000,
   max: 30,
   standardHeaders: true,

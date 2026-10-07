@@ -1,3 +1,4 @@
+const MongoRateLimitStore = require("../utils/MongoRateLimitStore");
 const express = require("express");
 const rateLimit = require("express-rate-limit");
 
@@ -5,6 +6,7 @@ const { lookupReferralCode, registerCustomer, loginCustomer, forgotCustomerPassw
 const router = express.Router();
 
 const authLimiter = rateLimit({
+  store: new MongoRateLimitStore("customer-auth"),
   windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,

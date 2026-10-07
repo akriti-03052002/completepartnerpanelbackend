@@ -230,7 +230,7 @@ const start = () => connectDB().then(() => {
   settleAllApprovedCommissions()
     .then((count) => { if (count) logger.info(`Opened settlements for ${count} previously approved commission(s).`); })
     .catch((error) => logger.error("Settling previously approved commissions failed:", error));
-  const runSocialSync = () => syncAllStaleAccounts().catch((error) => console.error("Social sync failed:", error.message));
+  const runSocialSync = () => require("./utils/runWithLease")("social-sync", syncAllStaleAccounts).catch((error) => console.error("Social sync failed:", error.message));
   runSocialSync();
   const socialTimer = setInterval(runSocialSync, 6 * 60 * 60 * 1000);
   let shuttingDown = false;

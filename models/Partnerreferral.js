@@ -100,4 +100,5 @@ const PartnerReferralSchema = new Schema(
 
 PartnerReferralSchema.index({ partnerId: 1, createdAt: -1 });
 
+PartnerReferralSchema.index({ status: 1, updatedAt: -1, _id: -1 });
 module.exports = model("PartnerReferral", PartnerReferralSchema);

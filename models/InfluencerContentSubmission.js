@@ -56,4 +56,5 @@ const InfluencerContentSubmissionSchema = new Schema(
 
 InfluencerContentSubmissionSchema.index({ partnerId: 1, createdAt: -1 });
 
+InfluencerContentSubmissionSchema.index({ status: 1, createdAt: -1, _id: -1 });
 module.exports = model("InfluencerContentSubmission", InfluencerContentSubmissionSchema);

@@ -148,8 +148,8 @@ const syncAllStaleAccounts = async () => {
   const cutoff = new Date(Date.now() - STALE_AFTER_MS);
   const partners = await Partner.find({
     socialAccounts: { $elemMatch: { connected: true, $or: [{ lastSyncedAt: { $lt: cutoff } }, { lastSyncedAt: { $exists: false } }] } }
-  }).select("socialAccounts");
-  for (const partner of partners) {
+  }).select("socialAccounts").cursor();
+  for await (const partner of partners) {
     // eslint-disable-next-line no-await-in-loop
     await syncStaleAccounts(partner);
   }

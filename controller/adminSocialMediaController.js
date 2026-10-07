@@ -1,3 +1,4 @@
+const pagination = require("../utils/pagination");
 const mongoose = require("mongoose");
 const { Partner, InfluencerContentSubmission, PartnerNotification } = require("../models/Index");
 const { attachPartnerAgreement, reissuePartnerAgreement } = require("../services/generatePartnerAgreement");
@@ -171,15 +172,21 @@ const listSubmissions = async (req, res) => {
   if (req.query.status && ["pending", "approved", "rejected"].includes(req.query.status)) {
     filter.status = req.query.status;
   }
-  const submissions = await InfluencerContentSubmission.find(filter)
-    .sort({ createdAt: -1 })
-    .populate("partnerId", "partnerCode primaryContact");
-  const data = await Promise.all(submissions.map(async (submission) => {
+  const { page, limit, skip } = pagination(req.query);
+  const [submissions, total, counts] = await Promise.all([InfluencerContentSubmission.find(filter)
+    .sort({ createdAt: -1, _id: -1 }).skip(skip).limit(limit)
+    .populate("partnerId", "partnerCode primaryContact socialAccounts").lean(),
+    InfluencerContentSubmission.countDocuments(filter),
+    InfluencerContentSubmission.aggregate([
+      { $match: filter.partnerId ? { partnerId: new mongoose.Types.ObjectId(filter.partnerId) } : {} },
+      { $group: { _id: "$status", count: { $sum: 1 } } }
+    ])]);
+  const data = submissions.map((submission) => {
     const partner = submission.partnerId;
-    const account = await Partner.findById(partner?._id).select("socialAccounts");
-    const socialAccount = account?.socialAccounts.id(submission.socialAccountId);
+    const socialAccount = partner?.socialAccounts?.find((account) => String(account._id) === String(submission.socialAccountId));
     return {
-      ...submission.toObject(),
+      ...submission,
+      partnerId: partner ? { _id: partner._id, partnerCode: partner.partnerCode, primaryContact: partner.primaryContact } : null,
       influencer: partner ? {
         _id: partner._id,
         partnerCode: partner.partnerCode,
@@ -194,8 +201,8 @@ const listSubmissions = async (req, res) => {
         reviewStatus: socialAccount.reviewStatus || "pending"
       } : null
     };
-  }));
-  return res.json({ success: true, data });
+  });
+  return res.json({ success: true, data, pagination: { page, limit, total, pages: Math.ceil(total / limit) }, counts: Object.fromEntries(counts.map((item) => [item._id, item.count])) });
 };
 
 const reviewSubmission = async (req, res) => {
