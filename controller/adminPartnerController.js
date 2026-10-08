@@ -143,6 +143,7 @@ const listPartners = async (req, res) => {
 
   const filter = {};
   if (status) filter.status = status;
+  if (status === "awaiting_verification") filter.status = { $in: ["draft", "pending_verification", "under_review"] };
   if (partnerType) filter.partnerType = partnerType;
   if (verificationStatus === "verified") filter["verification.overallStatus"] = "verified";
   if (typeof search === "string" && search.trim()) {
