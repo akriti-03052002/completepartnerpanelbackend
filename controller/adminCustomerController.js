@@ -29,6 +29,7 @@ const listCustomers = async (req, res) => {
     .sort({ createdAt: -1 })
     .populate("partnerId", "partnerCode legalEntity.businessName");
 
+
   // auth.passwordHash is select:false by default (never sent to the client) —
   // it's pulled in here only to derive this boolean, then stripped back out.
   const data = customers.map((customer) => {
