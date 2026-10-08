@@ -211,7 +211,7 @@ const markWon = async (req, res) => {
     type: "affiliate_commission_eligible",
     title: "Affiliate eligible for referral reward",
     message: `${partnerLabel(affiliate)} earned a referral reward of ₹${commissionAmount.toLocaleString("en-IN")} on ${lead.customer.companyName}. It is pending settlement.`,
-    link: `/admin/partners/${lead.partnerId}`,
+    link: "/admin/commissions",
     audienceRoles: ["finance"],
     partnerId: lead.partnerId,
     entityType: "PartnerCommission",

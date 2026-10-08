@@ -135,7 +135,7 @@ const registerViaReferral = asyncHandler(async (req, res) => {
       type: "reseller_customer_registered",
       title: "New reseller customer signed up",
       message: `${companyName.trim()} signed up with ${partnerLabel(partner)}'s referral code.`,
-      link: `/admin/partners/${partner._id}`,
+      link: "/admin/reseller/customers",
       partnerId: partner._id,
       entityType: "ResellerCustomer",
       entityId: customer._id

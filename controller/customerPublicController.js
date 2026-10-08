@@ -122,7 +122,7 @@ const registerCustomer = async (req, res) => {
       type: "vendor_customer_registered",
       title: "New vendor customer signed up",
       message: `${companyName} signed up with ${partnerLabel(partner)}'s referral code and started a 30-day trial.`,
-      link: `/admin/partners/${partner._id}`,
+      link: "/admin/customers",
       partnerId: partner._id,
       entityType: "Customer",
       entityId: customer._id

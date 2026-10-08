@@ -266,7 +266,7 @@ const reviewSubmission = async (req, res) => {
           type: "influencer_payment_eligible",
           title: "Influencer eligible for payment",
           message: `${partnerLabel(influencer)} earned ₹${submission.payment.amount.toLocaleString("en-IN")} for an approved ${platformLabel(submission.platform)} ${submission.contentType}. It is ready to be settled.`,
-          link: `/admin/partners/${submission.partnerId}`,
+          link: "/admin/settlements",
           audienceRoles: ["finance"],
           partnerId: submission.partnerId,
           entityType: "PartnerCommission",

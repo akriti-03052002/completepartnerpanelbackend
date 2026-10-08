@@ -112,7 +112,7 @@ const createCustomer = async (req, res) => {
       type: "vendor_customer_registered",
       title: "Vendor registered a customer",
       message: `${partnerLabel(req.partner)} registered ${companyName} as a customer. Their 30-day trial has started.`,
-      link: `/admin/partners/${req.partner._id}`,
+      link: "/admin/customers",
       partnerId: req.partner._id,
       entityType: "Customer",
       entityId: customer._id

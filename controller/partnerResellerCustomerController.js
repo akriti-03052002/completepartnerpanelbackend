@@ -90,7 +90,7 @@ const createCustomer = asyncHandler(async (req, res) => {
     type: "reseller_customer_registered",
     title: "Reseller added a customer",
     message: `${partnerLabel(req.partner)} added ${companyName} as a customer.`,
-    link: `/admin/partners/${req.partner._id}`,
+    link: "/admin/reseller/customers",
     partnerId: req.partner._id,
     entityType: "ResellerCustomer",
     entityId: customer._id
