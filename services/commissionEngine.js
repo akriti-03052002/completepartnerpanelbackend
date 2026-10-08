@@ -1,5 +1,7 @@
 const { CommissionRule, PartnerCommission, Partner, PartnerNotification, PartnerBankAccount } = require("../models/Index");
 const logActivity = require("../utils/logActivity");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { partnerLabel } = notifyAdmins;
 const { findApplicableCommissionRule } = require("../utils/partnerCommissionResolver");
 
 // No commission is created — not held, not pending, nothing — for a
@@ -304,6 +306,18 @@ const generateCommissionForCustomerPayment = async ({ customer, revenue, screenC
     title: "Commission earned",
     message: `${customer.companyName} paid for their subscription. You earned a commission of ₹${commission.calculation.netCommission.toLocaleString("en-IN", { maximumFractionDigits: 2 })}; it will be paid in a settlement once approved.`,
     entity: { type: "PartnerCommission", entityId: commission._id }
+  });
+
+  await notifyAdmins({
+    type: "vendor_commission_eligible",
+    title: "Vendor eligible for commission",
+    message: `${partnerLabel(partner)} earned a commission of ₹${commission.calculation.netCommission.toLocaleString("en-IN", { maximumFractionDigits: 2 })} on ${customer.companyName}'s payment. It is pending settlement.`,
+    link: `/admin/partners/${partner._id}`,
+    audienceRoles: ["finance"],
+    partnerId: partner._id,
+    entityType: "PartnerCommission",
+    entityId: commission._id,
+    actorAdminId: adminUser?._id
   });
 
   return { commission };
