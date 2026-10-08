@@ -1,6 +1,8 @@
 const { Customer } = require("../models/Index");
 const logActivity = require("../utils/logActivity");
 const notifyPartner = require("../utils/notifyPartner");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { partnerLabel } = notifyAdmins;
 const { sendCustomerSetPasswordEmail } = require("../services/customerAuth");
 
 /* ============================================================
@@ -102,6 +104,16 @@ const createCustomer = async (req, res) => {
       type: "customer_registered",
       title: "Customer registered",
       message: `${req.partnerUser.name} registered ${companyName}. Their 30-day trial has started; you earn commission when they pay for a subscription.`,
+      entityType: "Customer",
+      entityId: customer._id
+    });
+
+    await notifyAdmins({
+      type: "vendor_customer_registered",
+      title: "Vendor registered a customer",
+      message: `${partnerLabel(req.partner)} registered ${companyName} as a customer. Their 30-day trial has started.`,
+      link: `/admin/partners/${req.partner._id}`,
+      partnerId: req.partner._id,
       entityType: "Customer",
       entityId: customer._id
     });

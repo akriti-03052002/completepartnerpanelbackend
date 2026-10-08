@@ -3,6 +3,8 @@ const { Customer, Partner, Invoice } = require("../models/Index");
 const CustomerPayment = require("../models/CustomerPayment");
 const { generateCommissionForCustomerPayment } = require("./commissionEngine");
 const { refreshVendorScreenCount } = require("./tierAssignment");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { partnerLabel } = notifyAdmins;
 // Every Mongoose write in each transaction shares its session, including
 // the commission ledger, partner totals, activity and notification records.
 mongoose.set("transactionAsyncLocalStorage", true);
@@ -30,6 +32,25 @@ const applyPaidCustomerPayment = async (customerPaymentId, { razorpayPaymentId, 
       status: "paid", issuedAt: new Date(), customerPaymentId: claimed._id });
     return claimed;
   });
+
+  // Only the call that claimed the payment notifies, so a retry or the
+  // webhook arriving after the browser callback doesn't post it twice.
+  if (first) {
+    const [customer, partner] = await Promise.all([
+      Customer.findById(first.customerId).select("companyName"),
+      Partner.findById(first.partnerId).select("partnerCode partnerType legalEntity.businessName primaryContact.name")
+    ]);
+    await notifyAdmins({
+      type: "vendor_customer_payment",
+      title: "Vendor customer payment received",
+      message: `${customer?.companyName || "A customer"} of ${partnerLabel(partner)} paid ₹${Number(first.amount.total || 0).toLocaleString("en-IN")} for ${first.screenCount} screen${first.screenCount === 1 ? "" : "s"}.`,
+      link: `/admin/partners/${first.partnerId}`,
+      audienceRoles: ["finance"],
+      partnerId: first.partnerId,
+      entityType: "CustomerPayment",
+      entityId: first._id
+    });
+  }
 
   const completed = await mongoose.connection.transaction(async () => {
     const payment = await CustomerPayment.findOne({ _id: customerPaymentId, status: "paid", commissionGenerated: { $ne: true } });

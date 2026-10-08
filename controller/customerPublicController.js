@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const { Partner, Customer, PartnerNotification } = require("../models/Index");
 const logActivity = require("../utils/logActivity");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { partnerLabel } = notifyAdmins;
 const { sendCustomerSetPasswordEmail } = require("../services/customerAuth");
 
 /* ============================================================
@@ -114,6 +116,16 @@ const registerCustomer = async (req, res) => {
       title: "New customer registered",
       message: `${companyName} signed up with your referral code and started a 30-day trial.`,
       entity: { type: "Customer", entityId: customer._id }
+    });
+
+    await notifyAdmins({
+      type: "vendor_customer_registered",
+      title: "New vendor customer signed up",
+      message: `${companyName} signed up with ${partnerLabel(partner)}'s referral code and started a 30-day trial.`,
+      link: `/admin/partners/${partner._id}`,
+      partnerId: partner._id,
+      entityType: "Customer",
+      entityId: customer._id
     });
 
     return res.status(201).json({
