@@ -2,7 +2,8 @@ const pagination = require("../utils/pagination");
 const mongoose = require("mongoose");
 const { Partner, InfluencerContentSubmission, PartnerNotification } = require("../models/Index");
 const { attachPartnerAgreement, reissuePartnerAgreement } = require("../services/generatePartnerAgreement");
-const { platformLabel } = require("../utils/notifyAdmins");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { platformLabel, partnerLabel } = notifyAdmins;
 const notifyPartner = require("../utils/notifyPartner");
 const { recordContentPayment } = require("../services/contentPayment");
 const AdminNotification = require("../models/AdminNotification");
@@ -258,7 +259,21 @@ const reviewSubmission = async (req, res) => {
     // Approval is what makes the money owed: record it on the earnings
     // ledger so it appears in Settlements, ready to be paid out.
     if (decision === "approved") {
-      await recordContentPayment(submission, { accountLabel: account.username || account.accountId, byUserId: req.adminUser._id, req });
+      const payment = await recordContentPayment(submission, { accountLabel: account.username || account.accountId, byUserId: req.adminUser._id, req });
+      if (payment) {
+        const influencer = await Partner.findById(submission.partnerId).select("partnerCode partnerType legalEntity.businessName primaryContact.name");
+        await notifyAdmins({
+          type: "influencer_payment_eligible",
+          title: "Influencer eligible for payment",
+          message: `${partnerLabel(influencer)} earned ₹${submission.payment.amount.toLocaleString("en-IN")} for an approved ${platformLabel(submission.platform)} ${submission.contentType}. It is ready to be settled.`,
+          link: `/admin/partners/${submission.partnerId}`,
+          audienceRoles: ["finance"],
+          partnerId: submission.partnerId,
+          entityType: "PartnerCommission",
+          entityId: payment._id,
+          actorAdminId: req.adminUser._id
+        });
+      }
       await PartnerNotification.create({
         partnerId: submission.partnerId,
         type: "content_approved",

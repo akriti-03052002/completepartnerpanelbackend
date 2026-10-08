@@ -2,6 +2,8 @@ const asyncHandler = require("express-async-handler");
 const ResellerCustomer = require("../models/ResellerCustomer");
 const requirePrepaymentDone = require("../utils/requirePrepaymentDone");
 const logActivity = require("../utils/logActivity");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { partnerLabel } = notifyAdmins;
 const { assignReferralCode } = require("../services/vendorActivation");
 
 /* ============================================================
@@ -82,6 +84,16 @@ const createCustomer = asyncHandler(async (req, res) => {
     entityId: customer._id,
     description: `${req.partnerUser.name} added ${companyName} as a customer.`,
     req
+  });
+
+  await notifyAdmins({
+    type: "reseller_customer_registered",
+    title: "Reseller added a customer",
+    message: `${partnerLabel(req.partner)} added ${companyName} as a customer.`,
+    link: `/admin/partners/${req.partner._id}`,
+    partnerId: req.partner._id,
+    entityType: "ResellerCustomer",
+    entityId: customer._id
   });
 
   return res.status(201).json({ success: true, message: emailSent ? "Customer added. An email was sent so they can verify and set their password." : "Customer added. They can request their verification email from the customer login page.", data: customer });

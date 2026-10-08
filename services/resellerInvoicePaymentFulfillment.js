@@ -2,6 +2,9 @@ const { claimPayment } = require("../utils/assertPaymentNotReused");
 const ResellerInvoice = require("../models/ResellerInvoice");
 const logActivity = require("../utils/logActivity");
 const notifyPartner = require("../utils/notifyPartner");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { partnerLabel } = notifyAdmins;
+const { Partner } = require("../models/Index");
 
 /* ============================================================
    RESELLER INVOICE PAYMENT FULFILLMENT
@@ -47,6 +50,19 @@ const applyPaidInvoice = async (invoiceId, { razorpayPaymentId, offlinePayment }
     message: `SPOTX received your payment of ${notifyPartner.rupees(invoice.total)} for invoice ${invoice.invoiceNumber}.`,
     entityType: "ResellerInvoice",
     entityId: invoice._id
+  });
+
+  const partner = await Partner.findById(invoice.partnerId).select("partnerCode partnerType legalEntity.businessName primaryContact.name");
+  await notifyAdmins({
+    type: "reseller_invoice_paid",
+    title: "Reseller invoice payment received",
+    message: `${partnerLabel(partner)} paid ${notifyPartner.rupees(invoice.total)} for invoice ${invoice.invoiceNumber}${offlinePayment ? ` (${offlinePayment.method || "offline"})` : ""}.`,
+    link: "/admin/reseller",
+    audienceRoles: ["finance"],
+    partnerId: invoice.partnerId,
+    entityType: "ResellerInvoice",
+    entityId: invoice._id,
+    actorAdminId: offlinePayment?.verifiedBy
   });
 
   return invoice;

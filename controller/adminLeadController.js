@@ -10,6 +10,8 @@ const {
 } = require("../models/Index");
 const logActivity = require("../utils/logActivity");
 const notifyPartner = require("../utils/notifyPartner");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { partnerLabel } = notifyAdmins;
 
 const OPEN_STATUSES = ["new", "contacted"];
 const LEAD_STATUSES = ["new", "contacted", "qualified", "demo_scheduled", "demo_completed", "proposal", "won", "lost", "rejected"];
@@ -203,6 +205,18 @@ const markWon = async (req, res) => {
     title: "Your lead was won — referral reward earned",
     message: `${lead.customer.companyName} became a SPOTX customer. You earned a referral reward of ₹${commissionAmount.toLocaleString("en-IN")}; it will be paid in a settlement once approved.`,
     entity: { type: "PartnerCommission", entityId: commission._id }
+  });
+  const affiliate = await Partner.findById(lead.partnerId).select("partnerCode partnerType legalEntity.businessName primaryContact.name");
+  await notifyAdmins({
+    type: "affiliate_commission_eligible",
+    title: "Affiliate eligible for referral reward",
+    message: `${partnerLabel(affiliate)} earned a referral reward of ₹${commissionAmount.toLocaleString("en-IN")} on ${lead.customer.companyName}. It is pending settlement.`,
+    link: `/admin/partners/${lead.partnerId}`,
+    audienceRoles: ["finance"],
+    partnerId: lead.partnerId,
+    entityType: "PartnerCommission",
+    entityId: commission._id,
+    actorAdminId: req.adminUser._id
   });
 
   return res.json({

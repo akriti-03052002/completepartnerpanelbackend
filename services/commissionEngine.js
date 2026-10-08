@@ -207,6 +207,18 @@ const generateCommissionForWonOpportunity = async ({ opportunity, revenue, scree
     entity: { type: "PartnerCommission", entityId: commission._id }
   });
 
+  await notifyAdmins({
+    type: "partner_commission_eligible",
+    title: "Partner eligible for commission",
+    message: `${partnerLabel(partner)} earned a commission of ₹${commission.calculation.netCommission.toLocaleString("en-IN", { maximumFractionDigits: 2 })} on a won deal. It is pending settlement.`,
+    link: `/admin/partners/${partner._id}`,
+    audienceRoles: ["finance"],
+    partnerId: partner._id,
+    entityType: "PartnerCommission",
+    entityId: commission._id,
+    actorAdminId: adminUser?._id
+  });
+
   if (addOnCommission) {
     await PartnerNotification.create({
       partnerId: partner._id,

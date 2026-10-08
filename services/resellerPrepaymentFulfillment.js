@@ -2,6 +2,9 @@ const { claimPayment } = require("../utils/assertPaymentNotReused");
 const ResellerBillingConfig = require("../models/ResellerBillingConfig");
 const logActivity = require("../utils/logActivity");
 const notifyPartner = require("../utils/notifyPartner");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { partnerLabel } = notifyAdmins;
+const { Partner } = require("../models/Index");
 
 /* ============================================================
    RESELLER PREPAYMENT FULFILLMENT
@@ -44,6 +47,18 @@ const applyPaidPrepayment = async (partnerId, { razorpayPaymentId, method } = {}
     type: "prepayment_done",
     title: "Prepayment received",
     message: `SPOTX received your one-time prepayment of ${notifyPartner.rupees(config.prepayment.amount)}. You can now request licenses and add customers.`,
+    entityType: "ResellerBillingConfig",
+    entityId: config._id
+  });
+
+  const partner = await Partner.findById(partnerId).select("partnerCode partnerType legalEntity.businessName primaryContact.name");
+  await notifyAdmins({
+    type: "reseller_prepayment_paid",
+    title: "Reseller prepayment received",
+    message: `${partnerLabel(partner)} paid their one-time prepayment of ${notifyPartner.rupees(config.prepayment.amount)}. They can now request licenses.`,
+    link: "/admin/reseller",
+    audienceRoles: ["finance"],
+    partnerId,
     entityType: "ResellerBillingConfig",
     entityId: config._id
   });

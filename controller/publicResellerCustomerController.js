@@ -9,6 +9,8 @@ const CustomerAllocation = require("../models/CustomerAllocation");
 const Screen = require("../models/Screen");
 const { PartnerNotification } = require("../models/Index");
 const logActivity = require("../utils/logActivity");
+const notifyAdmins = require("../utils/notifyAdmins");
+const { partnerLabel } = notifyAdmins;
 const { sendMail } = require("../utils/mailer");
 const resellerInventory = require("../services/resellerInventory");
 
@@ -127,6 +129,16 @@ const registerViaReferral = asyncHandler(async (req, res) => {
       entityType: "ResellerCustomer",
       entityId: customer._id,
       description: `${companyName.trim()} self-registered using the partner's referral code.`
+    });
+
+  await notifyAdmins({
+      type: "reseller_customer_registered",
+      title: "New reseller customer signed up",
+      message: `${companyName.trim()} signed up with ${partnerLabel(partner)}'s referral code.`,
+      link: `/admin/partners/${partner._id}`,
+      partnerId: partner._id,
+      entityType: "ResellerCustomer",
+      entityId: customer._id
     });
 
   return res.status(201).json({
