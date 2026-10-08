@@ -237,4 +237,11 @@ test("profile customer list includes only the selected partner and supports pagi
   assert.equal(body.data.length, 5);
   assert.equal(body.data.every((row) => row.name.startsWith("Customer ")), true);
   assert.equal(body.data.some((row) => row.name === "Own customer"), false);
+  const customerId = body.data[0]._id;
+  assert.equal(body.data[0].registeredScreens, 0);
+  const expectedSubscription = body.data[0].subscribedScreens;
+  await require("../models/Screen").create({ customerId, name: "Lobby" });
+  await require("../controller/adminPartnerCustomersController")({ params: { id: String(partner._id) }, query: { page: "2" } }, { json: value => { body = value; } });
+  assert.equal(body.data.find(row => String(row._id) === String(customerId)).registeredScreens, 1);
+  assert.equal(body.data.find(row => String(row._id) === String(customerId)).subscribedScreens, expectedSubscription);
 });
