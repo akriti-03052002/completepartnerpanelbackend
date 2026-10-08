@@ -19,6 +19,7 @@ router.get("/:id/customers", requireAdminRole("kyc_reviewer", "finance"), requir
 router.get("/:id", requireAdminRole("kyc_reviewer", "finance"), getPartner);
 router.patch("/:id", requireAdminRole("kyc_reviewer"), updatePartnerProfile);
 router.patch("/:id/status", requireAdminRole("kyc_reviewer"), updatePartnerStatus);
+router.put("/:id/bank", requireAdminRole("kyc_reviewer"), require("../controller/adminBankEntryController"));
 router.patch("/:id/team/:userId", requireAdminRole("kyc_reviewer"), updateTeamMember);
 router.get("/:id/agreement-terms", requireAdminRole("kyc_reviewer"), getAgreementTerms);
 router.patch("/:id/agreement-terms", requireAdminRole("kyc_reviewer"), updateAgreementTerms);

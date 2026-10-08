@@ -1878,3 +1878,33 @@ test("manual customer receipts reject duplicate references and concurrent retrie
   assert.equal(await Invoice.countDocuments({ manualPaymentReference: "UTR-NEW-PAYMENT" }), 1);
   expectStatus(await api().patch(url).set(admin()).send({ revenue: 1000 }), 400, "reference required");
 });
+
+test("incomplete checks match dashboard and admin bank entry requires review", async () => {
+  const { Partner, PartnerBankAccount } = require('../models/Index');
+  const login = await api().post('/api/admin/auth/login').send({ email: 'admin@example.com', password: 'adminpass123' });
+  const auth = as(login.body.token);
+  const partner = await Partner.create({ partnerCode: 'PTN-CHECK-TEST', partnerType: 'affiliate', primaryContact: { name: 'Missing Bank', email: 'checks-test@example.com' }, status: 'draft' });
+  const excluded = await Partner.create({ partnerCode: 'PTN-CHECK-EXCLUDED', partnerType: 'affiliate', primaryContact: { name: 'Excluded', email: 'checks-excluded@example.com' }, status: 'inactive' });
+  let bank = await api().get('/api/admin/bank/pending').set(auth);
+  assert.equal(bank.status, 200);
+  assert.equal(bank.body.incompletePartners.find(p => p._id === String(partner._id)).checkStatus, 'Not submitted');
+  assert.ok(!bank.body.incompletePartners.some(p => p._id === String(excluded._id)));
+  const values = { accountHolderName: 'Missing Bank', bankName: 'Demo Bank', accountNumber: '123456789012', ifsc: 'HDFC0001234', accountType: 'savings' };
+  const route = `/api/admin/partners/${partner._id}/bank`;
+  assert.equal((await api().put(route).set(auth).send({ ...values, ifsc: 'bad' })).status, 400);
+  const saved = await api().put(route).set(auth).send(values);
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  const account = await PartnerBankAccount.findOne({ partnerId: partner._id }).select('+accountNumberEncrypted');
+  assert.equal(account.verification.status, 'pending');
+  assert.notEqual(account.accountNumberEncrypted, values.accountNumber);
+  assert.equal(account.commissionEligibility, 'not_eligible');
+  bank = await api().get('/api/admin/bank/pending').set(auth);
+  assert.equal(bank.body.incompletePartners.find(p => p._id === String(partner._id)).checkStatus, 'Waiting for review');
+  const docs = await api().get('/api/admin/documents/pending').set(auth);
+  assert.equal(docs.body.incompletePartners.find(p => p._id === String(partner._id)).checkStatus, 'Not submitted');
+  const dashboard = await api().get('/api/admin/stats/dashboard').set(auth);
+  assert.equal(bank.body.incompletePartners.length, dashboard.body.data.partners.bankPending);
+  assert.equal(docs.body.incompletePartners.length, dashboard.body.data.partners.kycPending);
+  account.verification.status = 'verified'; await account.save();
+  assert.equal((await api().put(route).set(auth).send(values)).status, 409);
+});

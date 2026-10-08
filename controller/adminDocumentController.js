@@ -16,7 +16,7 @@ const listPendingDocuments = async (req, res) => {
     .sort({ createdAt: 1 })
     .populate("partnerId", "partnerCode legalEntity.businessName");
 
-  return res.json({ success: true, data: documents });
+  return res.json({ success: true, data: documents, incompletePartners: await require("../services/incompletePartnerChecks")("documents") });
 };
 
 const downloadDocument = async (req, res) => {

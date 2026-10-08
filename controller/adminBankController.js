@@ -17,7 +17,7 @@ const listPendingBankAccounts = async (req, res) => {
     .sort({ createdAt: 1 })
     .populate("partnerId", "partnerCode partnerType legalEntity.businessName");
 
-  return res.json({ success: true, data: accounts });
+  return res.json({ success: true, data: accounts, incompletePartners: await require("../services/incompletePartnerChecks")("bank") });
 };
 
 const verifyBankAccount = async (req, res) => {
