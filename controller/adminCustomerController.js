@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { Customer, Partner, Invoice } = require("../models/Index");
+const { Customer, Partner, Invoice, Screen } = require("../models/Index");
 const { generateCommissionForCustomerPayment } = require("../services/commissionEngine");
 const { refreshVendorScreenCount } = require("../services/tierAssignment");
 const { sendCustomerSetPasswordEmail } = require("../services/customerAuth");
@@ -28,6 +28,11 @@ const listCustomers = async (req, res) => {
     .select("+auth.passwordHash")
     .sort({ createdAt: -1 })
     .populate("partnerId", "partnerCode legalEntity.businessName");
+  const screenCounts = await Screen.aggregate([
+    { $match: { customerId: { $in: customers.map(customer => customer._id) } } },
+    { $group: { _id: "$customerId", count: { $sum: 1 } } }
+  ]);
+  const registeredCounts = new Map(screenCounts.map(row => [String(row._id), row.count]));
 
 
   // auth.passwordHash is select:false by default (never sent to the client) —
@@ -37,6 +42,8 @@ const listCustomers = async (req, res) => {
     const hasPassword = Boolean(customer.auth?.passwordHash);
     delete plain.auth;
     plain.auth = { hasPassword };
+    plain.registeredScreens = registeredCounts.get(String(customer._id)) || 0;
+    plain.subscribedScreens = Number(customer.subscription?.screenCount) || 0;
     return plain;
   });
 
