@@ -182,12 +182,22 @@ const listSettlements = async (req, res) => {
   }
 
   const pagination = req.query.page !== undefined ? require("../utils/pagination")(req.query) : null;
-  const query = PartnerSettlement.find(filter).sort({ createdAt: -1 });
+  const listFilter = { ...filter };
+  if (req.query.duration && req.query.duration !== "all") {
+    const days = Number(req.query.duration);
+    if (!Number.isFinite(days) || days <= 0) return res.status(400).json({ success: false, message: "Invalid duration." });
+    listFilter.createdAt = { $gte: new Date(Date.now() - days * 86400000) };
+  }
+  if (typeof req.query.search === "string" && req.query.search.trim()) {
+    const escaped = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    listFilter.$or = ["settlementNumber", "payment.transactionId"].map(field => ({ [field]: { $regex: escaped, $options: "i" } }));
+  }
+  const query = PartnerSettlement.find(listFilter).sort({ createdAt: -1, _id: -1 });
   if (pagination) query.skip(pagination.skip).limit(pagination.limit);
   const settlements = await query.populate("partnerId", "partnerCode partnerType legalEntity.businessName").lean();
   const payload = { success: true, data: await attachBills(await attachMaskedBankAccounts(settlements)) };
   if (pagination) {
-    const total = await PartnerSettlement.countDocuments(filter);
+    const total = await PartnerSettlement.countDocuments(listFilter);
     const match = { ...filter };
     if (typeof match.partnerId === "string") match.partnerId = new mongoose.Types.ObjectId(match.partnerId);
     const day = new Date(req.query.todayStart);
