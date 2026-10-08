@@ -136,7 +136,7 @@ const getDashboard = async (req, res) => {
         { $match: { "verification.status": "verified" } },
         { $group: { _id: "$partnerId", types: { $addToSet: "$documentType" } } }
       ]),
-      PartnerBankAccount.find({}, "partnerId verification.status").lean()
+      PartnerBankAccount.find({}, "partnerId verification.status pendingChange.submittedAt").lean()
     ]);
 
     /* ---- money coming in ---- */
@@ -185,7 +185,7 @@ const getDashboard = async (req, res) => {
       if (["rejected", "inactive"].includes(partner.status)) continue;
       const have = verifiedDocTypes.get(String(partner._id)) || new Set();
       if (!getRequiredDocumentTypes(partner.partnerType).every((type) => have.has(type))) kycPending += 1;
-      if (bankStatus.get(String(partner._id)) !== "verified") bankPending += 1;
+      if (bankStatus.get(String(partner._id)) !== "verified" || bankAccounts.some(account => String(account.partnerId) === String(partner._id) && account.pendingChange)) bankPending += 1;
     }
 
     return res.json({
@@ -267,7 +267,7 @@ const getTypeOverview = async (req, res) => {
         { $match: { partnerId: { $in: ids }, "verification.status": "verified" } },
         { $group: { _id: "$partnerId", types: { $addToSet: "$documentType" } } }
       ]),
-      PartnerBankAccount.find({ partnerId: { $in: ids } }, "partnerId verification.status").lean(),
+      PartnerBankAccount.find({ partnerId: { $in: ids } }, "partnerId verification.status pendingChange.submittedAt").lean(),
       PartnerCommission.aggregate([
         { $match: { partnerId: { $in: ids }, "settlement.status": { $ne: "cancelled" } } },
         { $group: { _id: "$settlement.status", total: { $sum: "$calculation.netCommission" }, count: { $sum: 1 } } }
@@ -287,7 +287,7 @@ const getTypeOverview = async (req, res) => {
       if (["rejected", "inactive"].includes(partner.status)) continue;
       const have = docTypes.get(String(partner._id)) || new Set();
       if (!required.every((type) => have.has(type))) kycPending += 1;
-      if (bankStatus.get(String(partner._id)) !== "verified") bankPending += 1;
+      if (bankStatus.get(String(partner._id)) !== "verified" || bankAccounts.some(account => String(account.partnerId) === String(partner._id) && account.pendingChange)) bankPending += 1;
     }
 
     const earned = { total: 0, paid: 0, pending: 0, awaitingApproval: 0, count: 0 };

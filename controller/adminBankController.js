@@ -15,7 +15,7 @@ const listPendingBankAccounts = async (req, res) => {
     $or: [{ "verification.status": "pending" }, { pendingChange: { $ne: null } }]
   })
     .sort({ createdAt: 1 })
-    .populate("partnerId", "partnerCode partnerType legalEntity.businessName");
+    .populate("partnerId", "partnerCode partnerType status primaryContact.name legalEntity.businessName");
 
   return res.json({ success: true, data: accounts, incompletePartners: await require("../services/incompletePartnerChecks")("bank") });
 };

@@ -1907,4 +1907,12 @@ test("incomplete checks match dashboard and admin bank entry requires review", a
   assert.equal(docs.body.incompletePartners.length, dashboard.body.data.partners.kycPending);
   account.verification.status = 'verified'; await account.save();
   assert.equal((await api().put(route).set(auth).send(values)).status, 409);
+  account.pendingChange = { accountHolderName: 'Updated Holder', bankName: 'Updated Bank', accountType: 'savings', accountNumberEncrypted: account.accountNumberEncrypted, accountNumberLast4: '9012', ifscEncrypted: 'test', ifscMasked: 'HDFC***1234', submittedAt: new Date() };
+  await account.save();
+  const updatedBank = await api().get('/api/admin/bank/pending').set(auth);
+  const updates = updatedBank.body.incompletePartners.filter(p => p._id === String(partner._id));
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].checkStatus, 'Bank update awaiting review');
+  const updatedDashboard = await api().get('/api/admin/stats/dashboard').set(auth);
+  assert.equal(updatedDashboard.body.data.partners.bankPending, updatedBank.body.incompletePartners.length);
 });
