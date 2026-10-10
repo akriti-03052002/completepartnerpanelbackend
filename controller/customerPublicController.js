@@ -43,11 +43,11 @@ const registerCustomer = async (req, res) => {
       country, state, city, addressLine1, addressLine2, pincode
     } = req.body;
 
-    if (typeof referralCode !== "string" || !referralCode.trim() || typeof companyName !== "string" || !companyName.trim() || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || typeof password !== "string" || !password) {
+    if (typeof referralCode !== "string" || !referralCode.trim() || typeof companyName !== "string" || !companyName.trim() || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || (!req.googleIdentity && (typeof password !== "string" || !password))) {
       return res.status(400).json({ success: false, message: "Referral code, company name, email and password are required." });
     }
 
-    if (password.length < 8) {
+    if (!req.googleIdentity && password.length < 8) {
       return res.status(400).json({ success: false, message: "Password must be at least 8 characters." });
     }
 
@@ -69,7 +69,7 @@ const registerCustomer = async (req, res) => {
       return res.status(409).json({ success: false, message: "An account with this email already exists." });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = req.googleIdentity ? undefined : await bcrypt.hash(password, 12);
     const now = new Date();
     const trialEndsAt = new Date(now.getTime() + Customer.TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000);
 
@@ -88,14 +88,14 @@ const registerCustomer = async (req, res) => {
       },
       partnerId: partner._id,
       registrationSource: "referral_code",
-      auth: { passwordHash, emailVerified: false },
+      auth: { passwordHash, emailVerified: Boolean(req.googleIdentity), googleSub: req.googleIdentity?.sub },
       trial: { startedAt: now, endsAt: trialEndsAt },
       subscription: { status: "trial" }
     });
 
     let emailSent = false;
     try {
-      emailSent = await sendCustomerSetPasswordEmail(customer, { isNewAccount: true });
+      if (!req.googleIdentity) emailSent = await sendCustomerSetPasswordEmail(customer, { isNewAccount: true });
     } catch (error) {
       console.error("Customer verification email delivery failed:", error.message);
     }
@@ -128,6 +128,11 @@ const registerCustomer = async (req, res) => {
       entityId: customer._id
     });
 
+    if (req.googleIdentity) {
+      req.googleAccount = customer;
+      return loginCustomer(req, res);
+    }
+
     return res.status(201).json({
       success: true,
       message: emailSent ? "Check your email to verify your address and confirm your password before logging in." : "Account created, but the verification email could not be sent. Use the resend link to try again.",
@@ -158,11 +163,11 @@ const loginCustomer = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password) {
+    if (typeof email !== "string" || !email.trim() || (!req.googleIdentity && (typeof password !== "string" || !password))) {
       return res.status(400).json({ success: false, message: "Email and password are required." });
     }
 
-    const customer = await Customer.findOne({ email: email.toLowerCase().trim() }).select("+auth.passwordHash");
+    const customer = req.googleAccount || await Customer.findOne({ email: email.toLowerCase().trim() }).select("+auth.passwordHash");
 
     if (!customer) {
       return res.status(401).json({ success: false, message: "Invalid email or password." });
@@ -170,7 +175,7 @@ const loginCustomer = async (req, res) => {
 
     // A partner-registered customer starts with no passwordHash — they
     // need the activation email's link before they can log in at all.
-    if (!customer.auth.passwordHash) {
+    if (!req.googleIdentity && !customer.auth.passwordHash) {
       return res.status(403).json({
         success: false,
         message: "Set your password first using the link sent to your email."
@@ -181,7 +186,7 @@ const loginCustomer = async (req, res) => {
       return res.status(403).json({ success: false, message: "This account has been suspended. Contact your vendor." });
     }
 
-    const match = await bcrypt.compare(password, customer.auth.passwordHash);
+    const match = req.googleIdentity || await bcrypt.compare(password, customer.auth.passwordHash);
 
     if (!match) {
       return res.status(401).json({ success: false, message: "Invalid email or password." });

@@ -45,6 +45,7 @@ const PartnerUserSchema = new Schema(
     ],
 
     auth: {
+      googleSub: { type: String, unique: true, sparse: true, select: false },
       sessionVersion: { type: Number, default: 0 },
       invitationClaim: { type: String, select: false },
       invitationClaimExpires: { type: Date, select: false },

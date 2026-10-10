@@ -1,3 +1,5 @@
+const { googleConfig, verifyGoogleIdentity, googleLogin } = require("../utils/googleIdentity");
+const GoogleAccount = require("../models/Partneruser");
 const MongoRateLimitStore = require("../utils/MongoRateLimitStore");
 const express = require("express");
 const rateLimit = require("express-rate-limit");
@@ -39,5 +41,12 @@ router.post("/forgot-password", authLimiter, forgotPasswordValidator, forgotPass
 router.post("/reset-password/:token", authLimiter, resetPasswordValidator, resetPassword);
 router.post("/send-otp", otpLimiter, sendEmailOtpValidator, sendEmailOtp);
 router.post("/verify-otp", authLimiter, verifyEmailOtpValidator, verifyEmailOtp);
+
+router.get("/google/config", googleConfig);
+router.post("/google/login", authLimiter, verifyGoogleIdentity, googleLogin(GoogleAccount, "email", loginPartner));
+router.post("/google/register", authLimiter, verifyGoogleIdentity, (req, res, next) => {
+  if (!["vendor", "reseller", "affiliate", "influencer"].includes(req.body.partnerType) || typeof req.body.contactName !== "string" || !req.body.contactName.trim() || typeof req.body.phone !== "string" || !req.body.phone.trim()) return res.status(400).json({ success: false, message: "Choose a partner type and enter your name and phone number." });
+  return next();
+}, registerPartner);
 
 module.exports = router;

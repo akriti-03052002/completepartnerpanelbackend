@@ -218,7 +218,7 @@ const registerPartner = async (req, res) => {
       });
     }
 
-    if (typeof password !== "string" || password.length < 8) {
+    if (!req.googleIdentity && (typeof password !== "string" || password.length < 8)) {
       return res.status(400).json({
         success: false,
         message: "Password is required and must contain at least 8 characters."
@@ -227,14 +227,14 @@ const registerPartner = async (req, res) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    const otpRecord = await EmailOtp.findOne({ email: normalizedEmail, verified: true });
+    const otpRecord = req.googleIdentity ? null : await EmailOtp.findOne({ email: normalizedEmail, verified: true });
 
-    if (
+    if (!req.googleIdentity && (
       !otpRecord ||
       !emailVerificationToken ||
       otpRecord.verificationToken !== emailVerificationToken ||
       Date.now() - otpRecord.verifiedAt.getTime() > OTP_VERIFIED_GRACE_MS
-    ) {
+    )) {
       return res.status(400).json({ success: false, message: "Please verify your email with the OTP before registering." });
     }
 
@@ -290,7 +290,7 @@ const registerPartner = async (req, res) => {
       status: "draft"
     });
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = req.googleIdentity ? undefined : await bcrypt.hash(password, 12);
 
     const partnerUser = await PartnerUser.create({
       partnerId: partner._id,
@@ -299,7 +299,7 @@ const registerPartner = async (req, res) => {
       phone: phone || "",
       role: "owner",
       permissions: ROLE_PERMISSIONS.owner,
-      auth: { provider: "email", passwordHash },
+      auth: { provider: req.googleIdentity ? "google" : "email", passwordHash, googleSub: req.googleIdentity?.sub },
       status: "active"
     });
 
@@ -365,11 +365,11 @@ const loginPartner = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    if (!req.googleIdentity && (!email || !password)) {
       return res.status(400).json({ success: false, message: "Email and password are required." });
     }
 
-    const user = await PartnerUser.findOne({ email: email.toLowerCase().trim() }).select("+auth.passwordHash");
+    const user = req.googleAccount || await PartnerUser.findOne({ email: email.toLowerCase().trim() }).select("+auth.passwordHash");
 
     if (!user) {
       return res.status(401).json({ success: false, message: "Invalid email or password." });
@@ -382,14 +382,14 @@ const loginPartner = async (req, res) => {
     // Admin-invited accounts start with no password set — the partner sets
     // one via the emailed activation link (createPartner) before they can
     // log in at all.
-    if (!user.auth.passwordHash) {
+    if (!req.googleIdentity && !user.auth.passwordHash) {
       return res.status(403).json({
         success: false,
         message: "Set your password first using the activation link sent to your email."
       });
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.auth.passwordHash);
+    const passwordMatch = req.googleIdentity || await bcrypt.compare(password, user.auth.passwordHash);
 
     if (!passwordMatch) {
       return res.status(401).json({ success: false, message: "Invalid email or password." });

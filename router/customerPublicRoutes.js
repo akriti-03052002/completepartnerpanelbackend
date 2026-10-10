@@ -1,3 +1,5 @@
+const { googleConfig, verifyGoogleIdentity, googleLogin } = require("../utils/googleIdentity");
+const GoogleAccount = require("../models/Customer");
 const MongoRateLimitStore = require("../utils/MongoRateLimitStore");
 const express = require("express");
 const rateLimit = require("express-rate-limit");
@@ -19,5 +21,9 @@ router.post("/register", authLimiter, registerCustomer);
 router.post("/login", authLimiter, loginCustomer);
 router.post("/forgot-password", authLimiter, forgotCustomerPassword);
 router.post("/reset-password/:token", authLimiter, resetCustomerPassword);
+
+router.get("/google/config", googleConfig);
+router.post("/google/login", authLimiter, verifyGoogleIdentity, googleLogin(GoogleAccount, "email", loginCustomer));
+router.post("/google/register", authLimiter, verifyGoogleIdentity, registerCustomer);
 
 module.exports = router;

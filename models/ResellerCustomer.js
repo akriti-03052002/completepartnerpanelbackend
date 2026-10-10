@@ -48,6 +48,7 @@ const ResellerCustomerSchema = new Schema(
     // view their own screens/status, nothing else. Never select()'d by
     // default — mirrors PartnerUser's auth subdocument.
     auth: {
+      googleSub: { type: String, unique: true, sparse: true, select: false },
       sessionVersion: { type: Number, default: 0 },
       passwordHash: { type: String, select: false },
       emailVerified: { type: Boolean, default: false },

@@ -69,6 +69,7 @@ const CustomerSchema = new Schema(
     },
 
     auth: {
+      googleSub: { type: String, unique: true, sparse: true, select: false },
       sessionVersion: { type: Number, default: 0 },
       // Missing on historical accounts; new registrations explicitly start unverified.
       emailVerified: { type: Boolean },

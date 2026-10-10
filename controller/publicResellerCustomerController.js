@@ -95,15 +95,17 @@ const registerViaReferral = asyncHandler(async (req, res) => {
       contactDetails: { name: name || "", email: normalizedEmail, phone: phone || "" },
       status: "pending",
       auth: {
-        verifyTokenHash: tokenHash,
-        verifyTokenExpires: new Date(Date.now() + VERIFY_TOKEN_TTL_MS)
+        googleSub: req.googleIdentity?.sub,
+        emailVerified: Boolean(req.googleIdentity),
+        verifyTokenHash: req.googleIdentity ? undefined : tokenHash,
+        verifyTokenExpires: req.googleIdentity ? undefined : new Date(Date.now() + VERIFY_TOKEN_TTL_MS)
       }
     });
 
   const verifyLink = `${process.env.CLIENT_URL || "http://localhost:5173"}/reseller/customer/verify/${rawToken}`;
   const businessName = partner.legalEntity?.businessName || "your reseller";
 
-  await sendMail({
+  if (!req.googleIdentity) await sendMail({
       to: normalizedEmail,
       subject: `Verify your email — you're registered with ${businessName}`,
       text: `You registered with ${businessName} on SPOTX. Verify your email and set a password to view your screens: ${verifyLink}\n\nThis link expires in 7 days.`,
@@ -140,6 +142,11 @@ const registerViaReferral = asyncHandler(async (req, res) => {
       entityType: "ResellerCustomer",
       entityId: customer._id
     });
+
+  if (req.googleIdentity) {
+    req.googleAccount = customer;
+    return loginCustomer(req, res);
+  }
 
   return res.status(201).json({
       success: true,
@@ -188,14 +195,14 @@ const verifyAndSetPassword = asyncHandler(async (req, res) => {
 const loginCustomer = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password) {
+  if (!req.googleIdentity && (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password)) {
     return res.status(400).json({ success: false, message: "Email and password are required." });
   }
 
-  const customer = await ResellerCustomer.findOne({ "contactDetails.email": email.toLowerCase().trim() })
+  const customer = req.googleAccount || await ResellerCustomer.findOne({ "contactDetails.email": email.toLowerCase().trim() })
       .select("+auth.passwordHash");
 
-  if (!customer || !customer.auth?.passwordHash) {
+  if (!customer || (!req.googleIdentity && !customer.auth?.passwordHash)) {
     return res.status(401).json({ success: false, message: "Invalid email or password." });
   }
 
@@ -205,7 +212,7 @@ const loginCustomer = asyncHandler(async (req, res) => {
     return res.status(403).json({ success: false, message: "Verify your email first using the link we sent you." });
   }
 
-  const passwordMatch = await bcrypt.compare(password, customer.auth.passwordHash);
+  const passwordMatch = req.googleIdentity || await bcrypt.compare(password, customer.auth.passwordHash);
   if (!passwordMatch) {
     return res.status(401).json({ success: false, message: "Invalid email or password." });
   }

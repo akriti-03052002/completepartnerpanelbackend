@@ -1,3 +1,5 @@
+const { googleConfig, verifyGoogleIdentity, googleLogin } = require("../utils/googleIdentity");
+const GoogleAccount = require("../models/ResellerCustomer");
 const express = require("express");
 const router = express.Router();
 const rateLimit = require("express-rate-limit");
@@ -16,5 +18,9 @@ router.post("/register", registerViaReferral);
 router.post("/verify", verifyAndSetPassword);
 router.post("/login", loginCustomer);
 router.post("/forgot-password", requestPasswordLink);
+
+router.get("/google/config", googleConfig);
+router.post("/google/login", verifyGoogleIdentity, googleLogin(GoogleAccount, "contactDetails.email", loginCustomer));
+router.post("/google/register", verifyGoogleIdentity, registerViaReferral);
 
 module.exports = router;
