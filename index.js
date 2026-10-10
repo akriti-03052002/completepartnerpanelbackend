@@ -126,6 +126,7 @@ app.get("/health", (req, res) => {
 ========================================== */
 
 app.use("/api/partner/auth", partnerAuthRoutes);
+app.use("/api/auth/google", require("./router/googleRedirectRoutes"));
 app.use("/api/partner/programs", partnerProgramPublicRoutes);
 app.use("/api/partner/social", partnerSocialCallbackRoutes);
 app.use("/api/public/customers", customerPublicRoutes);
