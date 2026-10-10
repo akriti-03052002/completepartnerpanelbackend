@@ -75,6 +75,19 @@ app.use(
   })
 );
 
+// Vercel invokes the exported app without running the standalone server.
+// Share a connection promise across concurrent requests in each instance.
+if (process.env.VERCEL === "1") {
+  app.use(async (req, res, next) => {
+    if (req.method === "OPTIONS") return next();
+    try { await connectDB(); return next(); }
+    catch {
+      logger.error("Database connection unavailable on Vercel.");
+      return res.status(503).json({ success: false, message: "Database temporarily unavailable. Please try again." });
+    }
+  });
+}
+
 // Razorpay webhook: must be mounted with a raw body parser BEFORE the
 // global express.json() below — signature verification needs the exact
 // raw bytes Razorpay sent, which express.json() would otherwise consume.
@@ -258,6 +271,8 @@ const start = () => connectDB().then(() => {
 // a test it only hands back the Express app, so tests can drive the API
 // against their own throwaway database without opening a port or starting
 // the schedulers.
-if (require.main === module) start();
+if (require.main === module && process.env.VERCEL !== "1") {
+  start().catch(() => { logger.error("Server startup failed: database unavailable."); process.exitCode = 1; });
+}
 
 module.exports = app;

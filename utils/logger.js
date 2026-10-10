@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const LOG_DIR = path.join(__dirname, "..", "logs");
-if (!fs.existsSync(LOG_DIR)) {
+if (process.env.VERCEL !== "1" && !fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR, { recursive: true });
 }
 
@@ -12,6 +12,7 @@ const logFilePath = () => {
 };
 
 const writeLine = (level, message) => {
+  if (process.env.VERCEL === "1") return;
   const line = `[${new Date().toISOString()}] [${level}] ${message}\n`;
   fs.appendFile(logFilePath(), line, (err) => {
     if (err) console.error("Failed to write log file:", err.message);
