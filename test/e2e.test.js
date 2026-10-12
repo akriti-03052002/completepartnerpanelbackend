@@ -1921,7 +1921,7 @@ test("incomplete checks match dashboard and admin bank entry requires review", a
 test("unified customer login selects the correct portal and keeps account boundaries", async () => {
   for (const [email, password, type, allowed, denied] of [
     ["direct@example.com", "customerpass2", "vendor", "/api/customer/profile", "/api/customer-portal/me"],
-    ["portal@example.com", "password123", "reseller", "/api/customer-portal/me", "/api/customer/profile"]
+    ["portal@example.com", "updatedpassword123", "reseller", "/api/customer-portal/me", "/api/customer/profile"]
   ]) {
     const login = expectStatus(await api().post("/api/public/customers/unified/login").send({ email, password }), 200, "unified login");
     assert.equal(login.data.customerType, type);
