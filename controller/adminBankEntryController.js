@@ -3,7 +3,10 @@ const { encrypt, maskAccountNumber, maskIfsc } = require("../utils/encryption");
 const logActivity = require("../utils/logActivity");
 
 module.exports = async (req, res) => {
-  const { accountHolderName, bankName, accountNumber, ifsc, accountType } = req.body;
+  const { accountHolderName, bankName, accountNumber, ifsc, accountType, accountTypeOther } = req.body;
+    if (accountType === "other" && (typeof accountTypeOther !== "string" || !accountTypeOther.trim() || accountTypeOther.trim().length > 100)) {
+      return res.status(400).json({ success: false, message: "Specify the other account type (up to 100 characters)." });
+    }
   if (![accountHolderName, bankName, accountNumber, ifsc].every(value => typeof value === "string" && value.trim()) || !["savings", "current", "other"].includes(accountType)) {
     return res.status(400).json({ success: false, message: "All bank fields are required." });
   }
@@ -14,6 +17,7 @@ module.exports = async (req, res) => {
   if (!partner) return res.status(404).json({ success: false, message: "Partner not found." });
   const values = {
     accountHolderName: accountHolderName.trim(), bankName: bankName.trim(), accountType,
+    accountTypeOther: accountType === "other" ? accountTypeOther.trim() : "",
     accountNumberEncrypted: encrypt(accountNumber.trim()), accountNumberLast4: maskAccountNumber(accountNumber.trim()),
     ifscEncrypted: encrypt(ifsc.trim().toUpperCase()), ifscMasked: maskIfsc(ifsc.trim().toUpperCase()),
     verification: { status: "pending" }, razorpayCheck: { paymentStatus: "not_initiated" }, commissionEligibility: "not_eligible"

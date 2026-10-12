@@ -63,6 +63,8 @@ const PartnerBankAccountSchema = new Schema(
       required: true
     },
 
+    accountTypeOther: { type: String, trim: true, maxlength: 100, default: "" },
+
     /* CANCELLED CHEQUE */
     cancelledChequeDocumentId: {
       type: ObjectId,
@@ -163,6 +165,7 @@ const PartnerBankAccountSchema = new Schema(
           ifscEncrypted: { type: String, select: false },
           ifscMasked: { type: String, default: "" },
           accountType: { type: String, enum: ["current", "savings", "other"] },
+          accountTypeOther: { type: String, trim: true, maxlength: 100, default: "" },
           cancelledChequeDocumentId: { type: ObjectId, ref: "PartnerDocument" },
           submittedAt: { type: Date },
 

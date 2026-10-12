@@ -37,6 +37,8 @@ const PartnerDocumentSchema = new Schema(
       required: true
     },
 
+    documentDescription: { type: String, trim: true, maxlength: 200, default: "" },
+
     documentNumber: {
       type: String,
       default: ""

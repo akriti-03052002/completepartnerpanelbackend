@@ -192,7 +192,7 @@ const revealBankAccount = async (req, res) => {
 
     return res.json({
       success: true,
-      data: { accountNumber, ifsc, accountHolderName: account.accountHolderName, bankName: account.bankName }
+      data: { accountNumber, ifsc, accountHolderName: account.accountHolderName, bankName: account.bankName, accountType: account.accountType, accountTypeOther: account.accountTypeOther }
     });
   } catch (error) {
     console.error("revealBankAccount error:", error);
@@ -235,6 +235,7 @@ const approveBankAccountChange = async (req, res) => {
     account.ifscEncrypted = pending.ifscEncrypted;
     account.ifscMasked = pending.ifscMasked;
     account.accountType = pending.accountType;
+    account.accountTypeOther = pending.accountTypeOther || "";
     account.cancelledChequeDocumentId = pending.cancelledChequeDocumentId;
     account.razorpayCheck = pending.razorpayCheck;
     account.security.encryptedAt = new Date();

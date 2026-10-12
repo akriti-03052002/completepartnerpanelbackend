@@ -26,6 +26,7 @@ const maskPendingChange = (pendingChange) =>
         accountNumberLast4: pendingChange.accountNumberLast4,
         ifscMasked: pendingChange.ifscMasked,
         accountType: pendingChange.accountType,
+        accountTypeOther: pendingChange.accountTypeOther,
         submittedAt: pendingChange.submittedAt,
         razorpayCheck: pendingChange.razorpayCheck
       }
@@ -47,6 +48,7 @@ const getBankAccount = async (req, res) => {
       accountNumberLast4: bankAccount.accountNumberLast4,
       ifscMasked: bankAccount.ifscMasked,
       accountType: bankAccount.accountType,
+      accountTypeOther: bankAccount.accountTypeOther,
       cancelledChequeDocumentId: bankAccount.cancelledChequeDocumentId,
       verification: bankAccount.verification,
       razorpayCheck: bankAccount.razorpayCheck,
@@ -60,7 +62,10 @@ const getBankAccount = async (req, res) => {
 
 const upsertBankAccount = async (req, res) => {
   try {
-    const { accountHolderName, bankName, accountNumber, ifsc, accountType, cancelledChequeDocumentId } = req.body;
+    const { accountHolderName, bankName, accountNumber, ifsc, accountType, accountTypeOther, cancelledChequeDocumentId } = req.body;
+    if (accountType === "other" && (typeof accountTypeOther !== "string" || !accountTypeOther.trim() || accountTypeOther.trim().length > 100)) {
+      return res.status(400).json({ success: false, message: "Specify the other account type (up to 100 characters)." });
+    }
 
     if (!accountHolderName || !bankName || !accountNumber || !ifsc || !accountType) {
       return res.status(400).json({ success: false, message: "All bank account fields are required." });
@@ -100,6 +105,7 @@ const upsertBankAccount = async (req, res) => {
         accountHolderName,
         bankName,
         accountType,
+      accountTypeOther: accountType === "other" ? accountTypeOther.trim() : "",
         accountNumberEncrypted: encrypt(accountNumber),
         accountNumberLast4: maskAccountNumber(accountNumber),
         ifscEncrypted: encrypt(ifsc),
@@ -149,6 +155,7 @@ const upsertBankAccount = async (req, res) => {
       accountHolderName,
       bankName,
       accountType,
+      accountTypeOther: accountType === "other" ? accountTypeOther.trim() : "",
       accountNumberEncrypted: encrypt(accountNumber),
       accountNumberLast4: maskAccountNumber(accountNumber),
       ifscEncrypted: encrypt(ifsc),

@@ -414,6 +414,7 @@ const guardBeforePayout = async (req, res) => {
 const markSettlementPaidOffline = async (req, res) => {
   try {
     const { method, referenceNumber, paidAt, note } = req.body;
+    if (method === "other" && (typeof note !== "string" || !note.trim())) return res.status(400).json({ success: false, message: "Specify the other payment method in the note." });
 
     if (!["bank_transfer", "upi", "cheque", "cash", "other"].includes(method) || typeof referenceNumber !== "string" || !referenceNumber.trim()) {
       return res.status(400).json({ success: false, message: "A payment method and reference number are required." });

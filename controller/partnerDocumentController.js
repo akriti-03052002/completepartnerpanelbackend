@@ -18,7 +18,8 @@ const listDocuments = async (req, res) => {
 
 const uploadDocument = async (req, res) => {
   try {
-    const { documentType, documentNumber } = req.body;
+    const { documentType, documentNumber, documentDescription } = req.body;
+    if (documentType === "other" && (typeof documentDescription !== "string" || !documentDescription.trim() || documentDescription.trim().length > 200)) return res.status(400).json({ success: false, message: "Describe the other document (up to 200 characters)." });
 
     if (!documentType) {
       return res.status(400).json({ success: false, message: "Document type is required." });
@@ -47,6 +48,7 @@ const uploadDocument = async (req, res) => {
     const document = await PartnerDocument.create({
       partnerId: req.partner._id,
       documentType,
+      documentDescription: documentType === "other" ? documentDescription.trim() : "",
       documentNumber: documentNumber || "",
       file: await storeUploadedFile(req.file, String(req.partner._id)),
       verification: { status: "pending" }

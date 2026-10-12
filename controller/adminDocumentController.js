@@ -40,7 +40,8 @@ const downloadDocument = async (req, res) => {
 // isn't the same as reviewing.
 const uploadDocumentForPartner = async (req, res) => {
   try {
-    const { documentType } = req.body;
+    const { documentType, documentDescription } = req.body;
+    if (documentType === "other" && (typeof documentDescription !== "string" || !documentDescription.trim() || documentDescription.trim().length > 200)) return res.status(400).json({ success: false, message: "Describe the other document (up to 200 characters)." });
     const partnerId = req.params.id;
 
     if (!documentType) {
@@ -72,6 +73,7 @@ const uploadDocumentForPartner = async (req, res) => {
     const document = await PartnerDocument.create({
       partnerId,
       documentType,
+      documentDescription: documentType === "other" ? documentDescription.trim() : "",
       file: await storeUploadedFile(req.file, String(partnerId)),
       verification: { status: "pending" }
     });
