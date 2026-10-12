@@ -70,7 +70,7 @@ const listSettlements = async (req, res) => {
       // Commission earned but not yet paid out — the same balance the
       // settlement job draws down when a payout is marked paid, so it
       // reads as the partner's "available for settlement" amount.
-      availableBalance: req.partner.stats?.pendingCommission || 0,
+      availableBalance: breakdown.pending + breakdown.approved + settlements.filter(item => !["paid", "cancelled"].includes(item.status)).reduce((sum, item) => sum + (Number(item.amount?.net) || 0), 0),
       pendingApprovalAmount: breakdown.pending,
       approvedAwaitingBatchAmount: breakdown.approved,
       currency: "INR"
