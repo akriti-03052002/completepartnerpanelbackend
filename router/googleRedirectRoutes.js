@@ -50,9 +50,10 @@ router.post("/start", requireOrigin, limiter, async (req, res, next) => {
       return res.status(503).json({ success: false, message: "Google sign-in is not configured yet." });
     }
     const { endpoint, mode, returnTo } = req.body;
-    if (!["/partner/auth", "/public/customers", "/public/reseller-customers"].includes(endpoint) || !["login", "register"].includes(mode)) {
+    if (!["/partner/auth", "/public/customers", "/public/customers/unified", "/public/reseller-customers"].includes(endpoint) || !["login", "register"].includes(mode)) {
       return res.status(400).json({ success: false, message: "Invalid Google sign-in account type." });
     }
+    if (endpoint === "/public/customers/unified" && mode !== "login") return res.status(400).json({ success: false, message: "Enter your referral code before registering." });
     let returnUrl;
     try { returnUrl = new URL(returnTo); } catch { /* invalid URL handled below */ }
     if (!returnUrl || returnUrl.origin !== req.get("origin") || returnUrl.username || returnUrl.password || returnUrl.pathname.startsWith("/api/")) {
