@@ -38,7 +38,7 @@ const run = async () => {
     partner = await Partner.findById(partnerUser.partnerId);
     console.log("Demo reseller already exists — resetting password and inventory.");
   } else {
-    const partnerCode = generatePartnerCode();
+    const partnerCode = await generatePartnerCode();
 
     let referralCode;
     for (let attempt = 0; attempt < 10; attempt++) {

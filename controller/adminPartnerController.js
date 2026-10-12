@@ -45,7 +45,7 @@ const createPartner = async (req, res) => {
       return res.status(409).json({ success: false, message: "An account with this email already exists." });
     }
 
-    const partnerCode = generatePartnerCode();
+    const partnerCode = await generatePartnerCode();
 
     let referralCode;
 

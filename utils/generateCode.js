@@ -3,7 +3,33 @@ const crypto = require("crypto");
 const randomSegment = (length) =>
   crypto.randomBytes(length).toString("hex").toUpperCase().slice(0, length);
 
-const generatePartnerCode = () => "PTN-" + Date.now().toString().slice(-8);
+// A database counter reserves codes across concurrent API instances.
+// Keep old partner codes valid; only newly generated codes use four digits.
+const generatePartnerCode = async () => {
+  const Sequence = require("../models/CodeSequence");
+  const Partner = require("../models/Partner");
+  while (true) {
+    let sequence;
+    try {
+      sequence = await Sequence.findOneAndUpdate(
+        { _id: "partner", value: { $lt: 9999 } },
+        [{ $set: { value: { $add: [{ $ifNull: ["$value", 999] }, 1] } } }],
+        { upsert: true, returnDocument: "after", updatePipeline: true }
+      );
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      const current = await Sequence.findById("partner").lean();
+      if (current?.value >= 9999) {
+        const exhausted = new Error("All four-digit partner codes are in use. Contact support.");
+        exhausted.statusCode = 503;
+        throw exhausted;
+      }
+      continue;
+    }
+    const code = String(sequence.value);
+    if (!await Partner.exists({ partnerCode: code })) return code;
+  }
+};
 
 // Excludes visually ambiguous characters (0/O, 1/I) since partners will
 // be reading these out loud / typing them in manually.

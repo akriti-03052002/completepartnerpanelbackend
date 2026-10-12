@@ -9,7 +9,7 @@ const PLACEHOLDERS = {
   registeredAddress: "Your registered office address (set above)",
   influencerName: "The influencer's full name",
   influencerEmail: "The influencer's email",
-  influencerCode: "The influencer's code, e.g. PTN-12345678",
+  influencerCode: "The influencer's code, e.g. 1234",
   effectiveDate: "The date the agreement is issued",
   settlementCycle: "How often settlements are paid, e.g. monthly",
   taxNote: "The TDS sentence for this influencer's tax settings"

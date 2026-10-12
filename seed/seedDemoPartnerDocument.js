@@ -28,7 +28,7 @@ async function run() {
       originalName: "demo-sample.pdf", mimeType: "application/pdf"
     });
     if (!partner) partner = await Partner.create({
-      _id: partnerId, partnerCode: generatePartnerCode(), partnerType: "affiliate",
+      _id: partnerId, partnerCode: await generatePartnerCode(), partnerType: "affiliate",
       legalEntity: { businessName: "Demo Affiliate Partner", entityType: "individual" },
       primaryContact: { name: "Demo Partner", email },
       status: "pending_verification", verification: { overallStatus: "pending" }

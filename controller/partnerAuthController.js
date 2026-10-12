@@ -244,7 +244,7 @@ const registerPartner = async (req, res) => {
       return res.status(409).json({ success: false, message: "An account with this email already exists." });
     }
 
-    const partnerCode = generatePartnerCode();
+    const partnerCode = await generatePartnerCode();
 
     // Vendor partners don't get their referral code yet — for Vendor this
     // field means "customer signup code" and is only generated once SPOTX
