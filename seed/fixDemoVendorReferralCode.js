@@ -7,7 +7,7 @@ async function run() {
   await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000 });
   try {
     // Only the legacy scenario/demo vendor; other partner records are untouched.
-    const partner = await Partner.findOne({ partnerType: "vendor", partnerCode: "PTN-DEMO-VEN" });
+    const partner = await Partner.findOne({ partnerType: "vendor", "primaryContact.email": "vendor.scenario@spotx.demo" });
     if (!partner) throw new Error("Demo vendor not found.");
     if (/^[1-9]\d{3}$/.test(partner.referral?.referralCode || "")) {
       console.log(JSON.stringify({ name: partner.legalEntity?.businessName, referralCode: partner.referral.referralCode, changed: false }));

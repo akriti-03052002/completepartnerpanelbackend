@@ -4,11 +4,12 @@ const { getRequiredDocumentTypes, latestDocumentsByType } = require("../utils/pa
 const { storeBuffer } = require("../utils/fileStorage");
 const { encrypt } = require("../utils/encryption");
 const { autoActivatePartnerIfVerified } = require("../services/vendorActivation");
+const { isDemoPartner } = require("./demoAccounts");
+const { generatePartnerCode } = require("../utils/generateCode");
 
 async function verifyDemoPartner(partner) {
-  const allowed = ["PTN-DEMO-VEN", "PTN-DEMO-RES", "PTN-DEMO001"].includes(partner.partnerCode)
-    || ["demo.reseller@spotx.in", "demo.document@example.com"].includes(partner.primaryContact?.email);
-  if (!allowed) throw new Error("Verification fixtures are restricted to named demo accounts.");
+  if (!isDemoPartner(partner)) throw new Error("Verification fixtures are restricted to named demo accounts.");
+  if (!/^[1-9]\d{3}$/.test(partner.partnerCode)) partner.partnerCode = await generatePartnerCode();
   partner.primaryContact.phone ||= "+91 9876543210";
   partner.address ||= {};
   for (const [key, value] of Object.entries({ country: "India", state: "Maharashtra", city: "Mumbai", addressLine1: "Demo address — sample only", pincode: "400001" })) partner.address[key] ||= value;

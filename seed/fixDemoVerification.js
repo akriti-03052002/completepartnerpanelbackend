@@ -1,3 +1,4 @@
+const { demoPartnerQuery } = require("./demoAccounts");
 require("dotenv").config({ quiet: true });
 const mongoose = require("mongoose");
 const { Partner, PartnerDocument, PartnerBankAccount } = require("../models/Index");
@@ -7,10 +8,7 @@ async function run() {
   await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000 });
   try {
     // Only explicitly named demo fixtures; do not match live users by name.
-    const partners = await Partner.find({ $or: [
-      { partnerCode: { $in: ["PTN-DEMO-VEN", "PTN-DEMO-RES", "PTN-DEMO001"] } },
-      { "primaryContact.email": { $in: ["demo.reseller@spotx.in", "demo.document@example.com"] } }
-    ] });
+    const partners = await Partner.find(demoPartnerQuery);
     for (const partner of partners) {
       const [documents, bank] = await Promise.all([
         PartnerDocument.find({ partnerId: partner._id }).lean(),

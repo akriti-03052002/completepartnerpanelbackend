@@ -1,3 +1,4 @@
+const { demoPartnerQuery } = require("./demoAccounts");
 require("dotenv").config({ quiet: true });
 const mongoose = require("mongoose");
 const { Partner } = require("../models/Index");
@@ -8,10 +9,7 @@ async function run() {
   if (!isCloudinaryConfigured()) throw new Error("Cloudinary is required for downloadable demo KYC files.");
   await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 10000 });
   try {
-    const partners = await Partner.find({ $or: [
-      { partnerCode: { $in: ["PTN-DEMO-VEN", "PTN-DEMO-RES", "PTN-DEMO001"] } },
-      { "primaryContact.email": { $in: ["demo.reseller@spotx.in", "demo.document@example.com"] } }
-    ] });
+    const partners = await Partner.find(demoPartnerQuery);
     for (const partner of partners) {
       await verifyDemoPartner(partner);
       const updated = await Partner.findById(partner._id);
