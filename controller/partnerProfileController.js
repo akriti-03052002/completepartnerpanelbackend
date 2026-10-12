@@ -1,4 +1,5 @@
-const { Partner } = require("../models/Index");
+const { Partner, PartnerDocument, PartnerBankAccount } = require("../models/Index");
+const partnerCompletion = require("../utils/partnerCompletion");
 const { getRequiredDocumentTypes, getNotApplicableDocumentTypes, isProfileComplete } = require("../utils/partnerVerification");
 
 /* ============================================================
@@ -7,6 +8,10 @@ const { getRequiredDocumentTypes, getNotApplicableDocumentTypes, isProfileComple
 
 const getProfile = async (req, res) => {
   const partner = req.partner.toObject();
+  const [documents, bank] = await Promise.all([
+    PartnerDocument.find({ partnerId: req.partner._id, documentType: { $in: getRequiredDocumentTypes(partner.partnerType) } }).select("documentType file.objectKey verification.status createdAt").lean(),
+    PartnerBankAccount.findOne({ partnerId: req.partner._id }).select("accountHolderName bankName accountNumberLast4 verification.status").lean()
+  ]);
   if (req.partnerUser.role !== "owner" && !req.partnerUser.permissions.includes("commissions:view")) {
     for (const key of ["totalCommission", "pendingCommission", "approvedCommission", "paidCommission"]) delete partner.stats[key];
   }
@@ -17,7 +22,8 @@ const getProfile = async (req, res) => {
       user: req.partnerUser,
       requiredDocumentTypes: getRequiredDocumentTypes(req.partner.partnerType),
       notApplicableDocumentTypes: getNotApplicableDocumentTypes(req.partner.partnerType),
-      profileComplete: isProfileComplete(req.partner)
+      profileComplete: isProfileComplete(req.partner),
+      completion: partnerCompletion(partner, documents, bank)
     }
   });
 };
