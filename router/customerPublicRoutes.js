@@ -17,6 +17,13 @@ const authLimiter = rateLimit({
   message: { success: false, message: "Too many attempts. Please try again later." }
 });
 
+const unified = require("../controller/unifiedCustomerController");
+router.get("/unified/referral/:code", authLimiter, unified.referral);
+router.post("/unified/login", authLimiter, unified.login);
+router.post("/unified/google/login", authLimiter, verifyGoogleIdentity, unified.googleLogin);
+router.get("/unified/google/config", googleConfig);
+router.post("/unified/forgot-password", authLimiter, unified.forgotPassword);
+
 router.get("/referral/:code", lookupReferralCode);
 router.post("/register", authLimiter, registrationFields(), registerCustomer);
 router.post("/login", authLimiter, loginCustomer);

@@ -1916,3 +1916,25 @@ test("incomplete checks match dashboard and admin bank entry requires review", a
   const updatedDashboard = await api().get('/api/admin/stats/dashboard').set(auth);
   assert.equal(updatedDashboard.body.data.partners.bankPending, updatedBank.body.incompletePartners.length);
 });
+
+
+test("unified customer login selects the correct portal and keeps account boundaries", async () => {
+  for (const [email, password, type, allowed, denied] of [
+    ["direct@example.com", "customerpass2", "vendor", "/api/customer/profile", "/api/customer-portal/me"],
+    ["portal@example.com", "password123", "reseller", "/api/customer-portal/me", "/api/customer/profile"]
+  ]) {
+    const login = expectStatus(await api().post("/api/public/customers/unified/login").send({ email, password }), 200, "unified login");
+    assert.equal(login.data.customerType, type);
+    expectStatus(await api().get(allowed).set(as(login.data.token)), 200, "correct portal");
+    expectStatus(await api().get(denied).set(as(login.data.token)), 401, "other portal denied");
+  }
+  expectStatus(await api().post("/api/public/customers/unified/login").send({ email: "portal@example.com", password: "incorrect" }), 401, "wrong password");
+  expectStatus(await api().post("/api/public/customers/unified/login").send({ email: "missing@example.com", password: "incorrect" }), 401, "unknown account");
+  const { Partner } = require("../models/Index");
+  for (const type of ["vendor", "reseller"]) {
+    const partner = await Partner.findOne({ partnerType: type, "primaryContact.email": state.partners[type].email });
+    const lookup = expectStatus(await api().get(`/api/public/customers/unified/referral/${partner.referral.referralCode}`), 200, "unified referral");
+    assert.equal(lookup.data.customerType, type);
+  }
+  expectStatus(await api().get("/api/public/customers/unified/referral/not-a-code"), 404, "bad code");
+});
