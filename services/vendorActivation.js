@@ -1,6 +1,6 @@
 const { Partner, PartnerNotification } = require("../models/Index");
 const { generateNumericReferralCode } = require("../utils/generateCode");
-const { isPartnerFullyVerified } = require("../utils/partnerVerification");
+const { isPartnerFullyVerified, isProfileComplete } = require("../utils/partnerVerification");
 const { attachPartnerAgreement } = require("./generatePartnerAgreement");
 const { refreshVendorScreenCount } = require("./tierAssignment");
 
@@ -53,7 +53,7 @@ const assignReferralCode = async (partner) => {
 const autoActivatePartnerIfVerified = async (partnerId, adminUserId) => {
   const partner = await Partner.findById(partnerId);
 
-  if (!partner || partner.status === "active") return null;
+  if (!partner || ["active", "suspended", "inactive"].includes(partner.status) || !isProfileComplete(partner)) return null;
 
   const fullyVerified = await isPartnerFullyVerified(partnerId, partner.partnerType);
   if (!fullyVerified) return null;

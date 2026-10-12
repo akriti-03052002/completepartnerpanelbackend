@@ -1940,3 +1940,34 @@ test("unified customer login selects the correct portal and keeps account bounda
   }
   expectStatus(await api().get("/api/public/customers/unified/referral/not-a-code"), 404, "bad code");
 });
+
+test("outdated active flags cannot bypass latest KYC review for any partner type", async () => {
+  const { Partner, PartnerUser, PartnerDocument } = require("../models/Index");
+  const { getRequiredDocumentTypes } = require("../utils/partnerVerification");
+  const { autoActivatePartnerIfVerified } = require("../services/vendorActivation");
+  const jwt = require("jsonwebtoken");
+  for (const type of ["vendor", "affiliate", "influencer", "reseller"]) {
+    const partner = await Partner.findById(state.partners[type].id);
+    const originalStatus = partner.status;
+    const originalVerification = partner.verification.toObject();
+    const owner = await PartnerUser.findOne({ partnerId: partner._id, role: "owner" });
+    const token = jwt.sign({ userId: owner._id, sessionVersion: owner.auth.sessionVersion || 0 }, process.env.JWT_SECRET);
+    const document = await PartnerDocument.findOne({ partnerId: partner._id, documentType: getRequiredDocumentTypes(type)[0] }).lean();
+    const { _id, ...fields } = document;
+    const replacement = await PartnerDocument.create({ ...fields, createdAt: new Date(Date.now() + 1000), verification: { status: "pending" } });
+    try {
+      await Partner.updateOne({ _id: partner._id }, { $set: { status: "active" } });
+      const profile = expectStatus(await api().get("/api/partner/profile").set(as(token)), 200, `${type} status refresh`);
+      assert.equal(profile.data.partner.status, "pending_verification");
+      assert.equal((await Partner.findById(partner._id)).verification.overallStatus, "pending");
+      const path = { vendor: "customers", affiliate: "referrals", influencer: "commissions", reseller: "reseller/inventory" }[type];
+      expectStatus(await api().get(`/api/partner/${path}`).set(as(token)), 403, `${type} verification gate`);
+      await PartnerDocument.deleteOne({ _id: replacement._id });
+      await Partner.updateOne({ _id: partner._id }, { $set: { status: "suspended" } });
+      assert.equal(await autoActivatePartnerIfVerified(partner._id), null, "verification must not undo suspension");
+    } finally {
+      await PartnerDocument.deleteOne({ _id: replacement._id });
+      await Partner.updateOne({ _id: partner._id }, { $set: { status: originalStatus, verification: originalVerification } });
+    }
+  }
+});

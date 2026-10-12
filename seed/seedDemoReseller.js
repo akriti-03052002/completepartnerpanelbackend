@@ -4,8 +4,8 @@
  * the panel isn't empty on first login. Bypasses the normal email-OTP
  * registration flow (this is a script, not the public API) but creates
  * the exact same Partner/PartnerUser shape registerPartner does, plus
- * marks the partner fully verified so every gated route (dashboard,
- * buy-licenses, allocations, billing) works immediately.
+ * keeps verification consistent with the actual KYC and bank records.
+ * Business features unlock only after those checks are approved.
  *
  * Idempotent: re-running it just resets the demo account's password
  * and inventory rather than creating duplicates.
@@ -24,6 +24,8 @@ const ResellerCustomer = require("../models/ResellerCustomer");
 const CustomerAllocation = require("../models/CustomerAllocation");
 const { generatePartnerCode, generateReferralCode } = require("../utils/generateCode");
 const { ROLE_PERMISSIONS } = require("../config/roles");
+const { isPartnerFullyVerified, isProfileComplete } = require("../utils/partnerVerification");
+const verifyDemoPartner = require("./demoVerification");
 
 const DEMO_EMAIL = "demo.reseller@spotx.in";
 const DEMO_PASSWORD = "Reseller@12345";
@@ -59,12 +61,9 @@ const run = async () => {
       },
       primaryContact: { name: "Demo Reseller", email: DEMO_EMAIL, phone: "+91 9876543210" },
       address: { country: "India", state: "Maharashtra", city: "Mumbai", addressLine1: "123 Demo Street", pincode: "400001" },
-      referral: referralCode ? { referralCode, referralLink: `${process.env.CLIENT_URL || "http://localhost:5173"}/partner/register?ref=${referralCode}` } : undefined,
-      verification: { overallStatus: "verified", verifiedAt: new Date() },
-      // "active" is required by requireVerifiedPartner for every gated
-      // route this demo needs to show off — real partners only reach
-      // this after KYC + bank review, but this is a demo shortcut.
-      status: "active"
+      referral: referralCode ? { referralCode, referralLink: `${process.env.CLIENT_URL || "http://localhost:5173"}/reseller/customer/register?ref=${referralCode}` } : undefined,
+      verification: { overallStatus: "pending" },
+      status: "pending_verification"
     });
 
     const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
@@ -86,7 +85,13 @@ const run = async () => {
   // Always reset the password to the known demo value, even on a rerun.
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
   await PartnerUser.updateOne({ _id: partnerUser._id }, { $set: { "auth.passwordHash": passwordHash, status: "active" } });
-  await Partner.updateOne({ _id: partner._id }, { $set: { status: "active", "verification.overallStatus": "verified" } });
+  await verifyDemoPartner(partner);
+  const verified = isProfileComplete(partner) && await isPartnerFullyVerified(partner._id, partner.partnerType);
+  const status = ["suspended", "inactive", "rejected"].includes(partner.status) ? partner.status : verified ? "active" : "pending_verification";
+  await Partner.updateOne({ _id: partner._id }, {
+    $set: { status, "verification.overallStatus": verified ? "verified" : "pending", ...(partner.referral?.referralCode ? { "referral.referralLink": `${process.env.CLIENT_URL || "http://localhost:5173"}/reseller/customer/register?ref=${partner.referral.referralCode}` } : {}) },
+    ...(!verified ? { $unset: { "verification.verifiedAt": 1, "verification.verifiedBy": 1 } } : {})
+  });
 
   // Pricing plan — 20% wholesale discount off the ₹100 standard rate.
   await ResellerPricingPlan.findOneAndUpdate(
