@@ -1,4 +1,4 @@
-const PartnerCommission = require("../models/PartnerCommission");
+const PartnerCommission = require("../models/Partnercommission");
 const TIMEZONE = "Asia/Kolkata";
 
 function trendMonths(now = new Date()) {
