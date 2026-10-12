@@ -1,6 +1,7 @@
 const { googleConfig, verifyGoogleIdentity, googleLogin } = require("../utils/googleIdentity");
 const GoogleAccount = require("../models/ResellerCustomer");
 const express = require("express");
+const { registrationFields } = require("../validations/registrationFields");
 const router = express.Router();
 const rateLimit = require("express-rate-limit");
 const MongoRateLimitStore = require("../utils/MongoRateLimitStore");
@@ -14,13 +15,13 @@ const {
 // No auth — this is a reseller's own customer signing themselves up,
 // verifying their email, or logging into their own read-only portal.
 router.get("/lookup/:code", lookupReferralCode);
-router.post("/register", registerViaReferral);
+router.post("/register", registrationFields({ reseller: true }), registerViaReferral);
 router.post("/verify", verifyAndSetPassword);
 router.post("/login", loginCustomer);
 router.post("/forgot-password", requestPasswordLink);
 
 router.get("/google/config", googleConfig);
 router.post("/google/login", verifyGoogleIdentity, googleLogin(GoogleAccount, "contactDetails.email", loginCustomer));
-router.post("/google/register", verifyGoogleIdentity, registerViaReferral);
+router.post("/google/register", verifyGoogleIdentity, registrationFields({ reseller: true }), registerViaReferral);
 
 module.exports = router;

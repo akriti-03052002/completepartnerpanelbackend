@@ -66,7 +66,7 @@ test("partner Google registration ignores browser email and password, logs in, a
   assert.equal(user.auth.googleSub, "sub-partner@gmail.com");
   res = await request(app).post("/api/partner/auth/google/login").send(body);
   assert.equal(res.status, 200);
-  res = await request(app).post("/api/partner/auth/google/register").send({ ...body, partnerType: "affiliate", phone: "123" });
+  res = await request(app).post("/api/partner/auth/google/register").send({ ...body, partnerType: "affiliate", phone: "+919876543210" });
   assert.equal(res.status, 409);
   user.status = "blocked"; await user.save();
   res = await request(app).post("/api/partner/auth/google/login").send(body);

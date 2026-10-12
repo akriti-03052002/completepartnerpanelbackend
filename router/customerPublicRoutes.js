@@ -2,6 +2,7 @@ const { googleConfig, verifyGoogleIdentity, googleLogin } = require("../utils/go
 const GoogleAccount = require("../models/Customer");
 const MongoRateLimitStore = require("../utils/MongoRateLimitStore");
 const express = require("express");
+const { registrationFields } = require("../validations/registrationFields");
 const rateLimit = require("express-rate-limit");
 
 const { lookupReferralCode, registerCustomer, loginCustomer, forgotCustomerPassword, resetCustomerPassword } = require("../controller/customerPublicController");
@@ -17,13 +18,13 @@ const authLimiter = rateLimit({
 });
 
 router.get("/referral/:code", lookupReferralCode);
-router.post("/register", authLimiter, registerCustomer);
+router.post("/register", authLimiter, registrationFields(), registerCustomer);
 router.post("/login", authLimiter, loginCustomer);
 router.post("/forgot-password", authLimiter, forgotCustomerPassword);
 router.post("/reset-password/:token", authLimiter, resetCustomerPassword);
 
 router.get("/google/config", googleConfig);
 router.post("/google/login", authLimiter, verifyGoogleIdentity, googleLogin(GoogleAccount, "email", loginCustomer));
-router.post("/google/register", authLimiter, verifyGoogleIdentity, registerCustomer);
+router.post("/google/register", authLimiter, verifyGoogleIdentity, registrationFields(), registerCustomer);
 
 module.exports = router;

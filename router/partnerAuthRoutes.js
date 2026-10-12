@@ -2,6 +2,7 @@ const { googleConfig, verifyGoogleIdentity, googleLogin } = require("../utils/go
 const GoogleAccount = require("../models/Partneruser");
 const MongoRateLimitStore = require("../utils/MongoRateLimitStore");
 const express = require("express");
+const { registrationFields } = require("../validations/registrationFields");
 const rateLimit = require("express-rate-limit");
 
 const { registerPartner, loginPartner, forgotPassword, resetPassword, sendEmailOtp, verifyEmailOtp } = require("../controller/partnerAuthController");
@@ -35,7 +36,7 @@ const otpLimiter = rateLimit({
   message: { success: false, message: "Too many OTP requests. Please try again later." }
 });
 
-router.post("/register", authLimiter, registerPartnerValidator, registerPartner);
+router.post("/register", authLimiter, registrationFields({ partner: true }), registerPartnerValidator, registerPartner);
 router.post("/login", authLimiter, loginPartnerValidator, loginPartner);
 router.post("/forgot-password", authLimiter, forgotPasswordValidator, forgotPassword);
 router.post("/reset-password/:token", authLimiter, resetPasswordValidator, resetPassword);
@@ -44,7 +45,7 @@ router.post("/verify-otp", authLimiter, verifyEmailOtpValidator, verifyEmailOtp)
 
 router.get("/google/config", googleConfig);
 router.post("/google/login", authLimiter, verifyGoogleIdentity, googleLogin(GoogleAccount, "email", loginPartner));
-router.post("/google/register", authLimiter, verifyGoogleIdentity, (req, res, next) => {
+router.post("/google/register", authLimiter, verifyGoogleIdentity, registrationFields({ partner: true }), (req, res, next) => {
   if (!["vendor", "reseller", "affiliate", "influencer"].includes(req.body.partnerType) || typeof req.body.contactName !== "string" || !req.body.contactName.trim() || typeof req.body.phone !== "string" || !req.body.phone.trim()) return res.status(400).json({ success: false, message: "Choose a partner type and enter your name and phone number." });
   return next();
 }, registerPartner);
