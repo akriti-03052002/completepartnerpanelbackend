@@ -32,9 +32,10 @@ const finalizeSettlementPaid = async (settlement, { method, transactionId, paidA
     paidAt: paidAt || new Date()
   };
   const updated = await mongoose.connection.transaction(async (session) => {
+    const fromStatus = verifiedOnline && settlement.status === "failed" ? "failed" : "approved";
     const claimed = await PartnerSettlement.findOneAndUpdate(
-      { _id: settlement._id, status: "approved" },
-      { $set: { status: "paid", payment, ...(settlement.cheque?.number ? { cheque: JSON.parse(JSON.stringify(settlement.cheque)) } : {}) } },
+      { _id: settlement._id, status: fromStatus },
+      { $set: { status: "paid", payment, failureReason: "", ...(settlement.cheque?.number ? { cheque: JSON.parse(JSON.stringify(settlement.cheque)) } : {}) } },
       { returnDocument: "after", session, runValidators: true }
     );
     if (!claimed) {
@@ -53,7 +54,7 @@ const finalizeSettlementPaid = async (settlement, { method, transactionId, paidA
     await PartnerSettlementHistory.create([{
       settlementId: claimed._id, partnerId: claimed.partnerId,
       action: verifiedOnline ? "paid_razorpay" : "paid_offline",
-      fromStatus: "approved", toStatus: "paid",
+      fromStatus, toStatus: "paid",
       amount: { net: claimed.amount.net, gst: paidAmount - claimed.amount.net, total: paidAmount, currency: claimed.amount.currency },
       meta: { method, transactionId }, performedByType: byUserId ? "spotx_user" : "system",
       performedByUserId: byUserId, ipAddress: req?.ip || ""

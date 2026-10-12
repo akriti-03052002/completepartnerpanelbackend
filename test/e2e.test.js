@@ -1075,6 +1075,8 @@ test("settlement paid from a RazorpayX payout is checked for status, amount and 
 
   const good = expectStatus(await api().get(`/api/admin/settlements/${id}/online-check`).query({ transactionId: "pout_good1" }).set(admin()), 200, "online check");
   assert.equal(good.data.ok, true);
+  expectStatus(await api().patch(`/api/admin/settlements/${id}/fail`).set(admin()).send({ reason: "Confirmation was delayed." }), 200, "mark delayed payout failed");
+  assert.equal((await api().patch(`/api/admin/settlements/${id}/mark-paid`).set(admin()).send({ transactionId: "pout_wrongacct" })).status, 400, "recovery still checks recipient");
   expectStatus(await api().patch(`/api/admin/settlements/${id}/mark-paid`).set(admin()).send({ transactionId: "pout_good1" }), 200, "mark paid from payout");
 
   const detail = expectStatus(await api().get(`/api/admin/settlements/${id}`).set(admin()), 200, "settlement detail");

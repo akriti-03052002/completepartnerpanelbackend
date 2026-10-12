@@ -380,7 +380,7 @@ const approveSettlement = async (req, res) => {
 // status + full readiness (bank/partner eligibility + GST bill, if
 // required). Returns the settlement on success, or null after already
 // having written a response (either an error or a hold).
-const guardBeforePayout = async (req, res) => {
+const guardBeforePayout = async (req, res, { allowFailedRecovery = false } = {}) => {
   const settlement = await PartnerSettlement.findById(req.params.id);
 
   if (!settlement) {
@@ -388,7 +388,7 @@ const guardBeforePayout = async (req, res) => {
     return null;
   }
 
-  if (settlement.status !== "approved") {
+  if (settlement.status !== "approved" && !(allowFailedRecovery && settlement.status === "failed")) {
     res.status(400).json({ success: false, message: "Only an approved settlement can be paid." });
     return null;
   }
@@ -480,7 +480,7 @@ const markSettlementPaid = async (req, res) => {
       return res.status(400).json({ success: false, message: "A Razorpay payment ID is required." });
     }
 
-    const settlement = await guardBeforePayout(req, res);
+    const settlement = await guardBeforePayout(req, res, { allowFailedRecovery: true });
     if (!settlement) return;
 
     // Paid out through RazorpayX: only marked paid if RazorpayX confirms
