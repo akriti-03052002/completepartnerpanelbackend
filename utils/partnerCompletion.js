@@ -1,4 +1,4 @@
-const { getRequiredDocumentTypes } = require("./partnerVerification");
+const { getRequiredDocumentTypes, latestDocumentsByType } = require("./partnerVerification");
 
 const filled = value => typeof value === "string" && Boolean(value.trim());
 const summarize = checks => ({
@@ -20,10 +20,7 @@ function partnerCompletion(partner, documents = [], bank = null) {
     ["Postal code", partner.address?.pincode]
   ];
   const profileChecks = profileFields.map(([label, value]) => ({ label, done: filled(value) }));
-  const latest = new Map();
-  for (const document of [...documents].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))) {
-    if (!latest.has(document.documentType)) latest.set(document.documentType, document);
-  }
+  const latest = latestDocumentsByType(documents);
   const checks = getRequiredDocumentTypes(partner.partnerType).map(type => {
     const document = latest.get(type);
     return { done: Boolean(document?.file?.objectKey) && document.verification?.status !== "rejected", verified: document?.verification?.status === "verified" };

@@ -25,12 +25,13 @@ const markAsRead = async (req, res) => {
 };
 
 const markAllAsRead = async (req, res) => {
-  await PartnerNotification.updateMany(
+  const result = await PartnerNotification.updateMany(
     { partnerId: req.partner._id, read: false },
     { $set: { read: true, readAt: new Date() } }
   );
 
-  return res.json({ success: true, message: "All notifications marked as read." });
+  return res.json({ success: true, updatedCount: result.modifiedCount,
+    message: result.modifiedCount ? "All notifications marked as read." : "No unread notifications." });
 };
 
 module.exports = { listNotifications, markAsRead, markAllAsRead };

@@ -9,7 +9,7 @@ const {
   PartnerReferral,
   PartnerTier
 } = require("../models/Index");
-const { getRequiredDocumentTypes, getDefaultMetricLabel, isProfileComplete } = require("../utils/partnerVerification");
+const { computeKycStatus, getDefaultMetricLabel, isProfileComplete } = require("../utils/partnerVerification");
 
 /* ============================================================
    PARTNER DASHBOARD
@@ -20,19 +20,6 @@ const { getRequiredDocumentTypes, getDefaultMetricLabel, isProfileComplete } = r
 // actually needs to act on separately. Required doc types depend on the
 // partner's own type (business types need GST/MSME; individual-oriented
 // types like Affiliate/Influencer/Referral just need PAN + a cheque).
-const computeKycStatus = (documents, partnerType) => {
-  const requiredTypes = getRequiredDocumentTypes(partnerType);
-  const required = documents.filter((d) => requiredTypes.includes(d.documentType));
-
-  if (required.length === 0) return "not_submitted";
-  if (required.some((d) => d.verification.status === "rejected")) return "rejected";
-
-  const verifiedTypes = new Set(required.filter((d) => d.verification.status === "verified").map((d) => d.documentType));
-  if (requiredTypes.every((type) => verifiedTypes.has(type))) return "verified";
-
-  return "pending";
-};
-
 const computeBankStatus = (bankAccount) => {
   if (!bankAccount) return "not_submitted";
   return bankAccount.verification.status; // pending | verified | rejected

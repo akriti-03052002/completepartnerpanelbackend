@@ -44,6 +44,23 @@ const isDocumentTypeApplicable = (partnerType, documentType) => !getNotApplicabl
 const getRequiredDocumentTypes = (partnerType) =>
   REQUIRED_DOCUMENTS_BY_PARTNER_TYPE[partnerType] || REQUIRED_DOCUMENTS_BY_PARTNER_TYPE.vendor;
 
+const latestDocumentsByType = (documents) => {
+  const latest = new Map();
+  for (const document of [...documents].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0) || String(b._id || "").localeCompare(String(a._id || "")))) {
+    if (!latest.has(document.documentType)) latest.set(document.documentType, document);
+  }
+  return latest;
+};
+
+const computeKycStatus = (documents, partnerType) => {
+  const latest = latestDocumentsByType(documents);
+  const required = getRequiredDocumentTypes(partnerType).map(type => latest.get(type));
+  if (required.some(document => document?.verification?.status === "rejected")) return "rejected";
+  if (required.some(document => !document)) return "not_submitted";
+  if (required.every(document => document.verification?.status === "verified")) return "verified";
+  return "pending";
+};
+
 /**
  * Default label for the partner's primary performance metric, used when
  * they don't yet have a tier assigned (PartnerTier.qualification.metric.label
@@ -70,11 +87,7 @@ const isKycDocumentsVerified = async (partnerId, partnerType) => {
 
   const documents = await PartnerDocument.find({ partnerId, documentType: { $in: requiredTypes } });
 
-  const verifiedTypes = new Set(
-    documents.filter((d) => d.verification.status === "verified").map((d) => d.documentType)
-  );
-
-  return requiredTypes.every((type) => verifiedTypes.has(type));
+  return computeKycStatus(documents, partnerType) === "verified";
 };
 
 const isPartnerFullyVerified = async (partnerId, partnerType) => {
@@ -102,6 +115,8 @@ const isProfileComplete = (partner) => {
 };
 
 module.exports = {
+  latestDocumentsByType,
+  computeKycStatus,
   isProfileComplete,
   getNotApplicableDocumentTypes,
   isDocumentTypeApplicable,
