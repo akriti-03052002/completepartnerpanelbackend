@@ -64,6 +64,9 @@ test("partner Google registration ignores browser email and password, logs in, a
   const user = await PartnerUser.findOne({ email: "partner@gmail.com" }).select("+auth.passwordHash +auth.googleSub");
   assert.equal(user.auth.passwordHash, undefined);
   assert.equal(user.auth.googleSub, "sub-partner@gmail.com");
+  const affiliate = await Partner.findById(user.partnerId);
+  assert.equal(affiliate.referral?.referralCode, undefined);
+  assert.ok(!affiliate.referral?.referralLink);
   res = await request(app).post("/api/partner/auth/google/login").send(body);
   assert.equal(res.status, 200);
   res = await request(app).post("/api/partner/auth/google/register").send({ ...body, partnerType: "affiliate", phone: "+919876543210" });

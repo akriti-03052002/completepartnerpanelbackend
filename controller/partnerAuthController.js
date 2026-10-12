@@ -246,15 +246,11 @@ const registerPartner = async (req, res) => {
 
     const partnerCode = await generatePartnerCode();
 
-    // Vendor partners don't get their referral code yet — for Vendor this
-    // field means "customer signup code" and is only generated once SPOTX
-    // verifies the partner's documents + bank account (see
-    // adminPartnerController.updatePartnerStatus). Every other partner type
-    // keeps the existing behavior: a partner-referring-partner code, issued
-    // immediately at registration.
+    // Customer codes belong only to vendors and resellers.
+    // Vendors receive theirs after verification; affiliates/influencers never do.
     let referralCode;
 
-    if (partnerType !== "vendor") {
+    if (partnerType === "reseller") {
       // Only 4 characters wide (~1.1M combinations) — check for a
       // collision before committing to one instead of relying on the
       // unique index to reject it after the fact.
@@ -283,7 +279,7 @@ const registerPartner = async (req, res) => {
       referral: referralCode
         ? {
             referralCode,
-            referralLink: `${process.env.CLIENT_URL || "http://localhost:5173"}/partner/register?ref=${referralCode}`
+            referralLink: `${process.env.CLIENT_URL || "http://localhost:5173"}/reseller/customer/register?ref=${referralCode}`
           }
         : undefined,
       verification: { overallStatus: "not_submitted" },

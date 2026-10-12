@@ -49,7 +49,7 @@ const createPartner = async (req, res) => {
 
     let referralCode;
 
-    if (partnerType !== "vendor") {
+    if (partnerType === "reseller") {
       for (let attempt = 0; attempt < 10; attempt++) {
         const candidate = generateReferralCode();
         // eslint-disable-next-line no-await-in-loop
@@ -73,7 +73,7 @@ const createPartner = async (req, res) => {
       partnerType,
       primaryContact: { name: contactName, email: email.toLowerCase().trim(), phone },
       referral: referralCode
-        ? { referralCode, referralLink: `${process.env.CLIENT_URL || "http://localhost:5173"}/partner/register?ref=${referralCode}` }
+        ? { referralCode, referralLink: `${process.env.CLIENT_URL || "http://localhost:5173"}/reseller/customer/register?ref=${referralCode}` }
         : undefined,
       verification: { overallStatus: "not_submitted" },
       status: "draft",
