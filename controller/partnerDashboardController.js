@@ -10,6 +10,7 @@ const {
   PartnerTier
 } = require("../models/Index");
 const { computeKycStatus, getDefaultMetricLabel, isProfileComplete } = require("../utils/partnerVerification");
+const { commissionTrend: getCommissionTrend } = require("../services/commissionTrend");
 
 /* ============================================================
    PARTNER DASHBOARD
@@ -102,18 +103,7 @@ const getDashboard = async (req, res) => {
     const [recentActivity, unreadNotifications, commissionTrend, documents, bankAccount, tier, typeStats, businessOverview] = await Promise.all([
       PartnerActivity.find({ partnerId: partner._id }).sort({ createdAt: -1 }).limit(10),
       PartnerNotification.countDocuments({ partnerId: partner._id, read: false }),
-      PartnerCommission.aggregate([
-        { $match: { partnerId: partner._id, "settlement.status": { $ne: "cancelled" } } },
-        {
-          $group: {
-            _id: { year: { $year: "$createdAt" }, month: { $month: "$createdAt" } },
-            total: { $sum: "$calculation.netCommission" }
-          }
-        },
-        { $sort: { "_id.year": -1, "_id.month": -1 } },
-        { $limit: 12 },
-        { $sort: { "_id.year": 1, "_id.month": 1 } }
-      ]),
+      getCommissionTrend(partner._id),
       PartnerDocument.find({ partnerId: partner._id }),
       PartnerBankAccount.findOne({ partnerId: partner._id }),
       partner.partnerType !== "vendor" && partner.program?.tierId ? PartnerTier.findById(partner.program.tierId) : null,
@@ -146,10 +136,7 @@ const getDashboard = async (req, res) => {
         bankStatus: computeBankStatus(bankAccount),
         unreadNotifications,
         recentActivity,
-        commissionTrend: commissionTrend.map((row) => ({
-          period: `${row._id.year}-${String(row._id.month).padStart(2, "0")}`,
-          total: row.total
-        }))
+        commissionTrend
     };
     require("../services/filterPartnerDashboard")(data, req.partnerUser);
     return res.json({ success: true, data });
