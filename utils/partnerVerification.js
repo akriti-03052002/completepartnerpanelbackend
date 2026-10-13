@@ -85,20 +85,22 @@ const getDefaultMetricLabel = (partnerType) =>
 const isKycDocumentsVerified = async (partnerId, partnerType) => {
   const requiredTypes = getRequiredDocumentTypes(partnerType);
 
-  const documents = await PartnerDocument.find({ partnerId, documentType: { $in: requiredTypes } });
+  const documents = await PartnerDocument.find({ partnerId, documentType: { $in: requiredTypes } }).select("documentType verification.status createdAt").lean();
 
   return computeKycStatus(documents, partnerType) === "verified";
 };
 
-const isPartnerFullyVerified = async (partnerId, partnerType) => {
-  const [allDocsVerified, bankAccount] = await Promise.all([
-    isKycDocumentsVerified(partnerId, partnerType),
-    PartnerBankAccount.findOne({ partnerId })
+const getPartnerVerificationRecords = async (partnerId, partnerType) => {
+  const [documents, bank] = await Promise.all([
+    PartnerDocument.find({ partnerId, documentType: { $in: getRequiredDocumentTypes(partnerType) } }).select("documentType file.objectKey verification.status createdAt").lean(),
+    PartnerBankAccount.findOne({ partnerId }).select("accountHolderName bankName accountNumberLast4 verification.status").lean()
   ]);
+  return { documents, bank };
+};
 
-  const bankVerified = bankAccount?.verification?.status === "verified";
-
-  return allDocsVerified && bankVerified;
+const isPartnerFullyVerified = async (partnerId, partnerType) => {
+  const { documents, bank } = await getPartnerVerificationRecords(partnerId, partnerType);
+  return computeKycStatus(documents, partnerType) === "verified" && bank?.verification?.status === "verified";
 };
 
 /**
@@ -115,6 +117,7 @@ const isProfileComplete = (partner) => {
 };
 
 module.exports = {
+  getPartnerVerificationRecords,
   latestDocumentsByType,
   computeKycStatus,
   isProfileComplete,

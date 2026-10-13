@@ -133,6 +133,9 @@ const getDashboard = async (req, res) => {
       ]),
 
       PartnerDocument.aggregate([
+        { $sort: { createdAt: -1, _id: -1 } },
+        { $group: { _id: { partnerId: "$partnerId", type: "$documentType" }, document: { $first: "$$ROOT" } } },
+        { $replaceRoot: { newRoot: "$document" } },
         { $match: { "verification.status": "verified" } },
         { $group: { _id: "$partnerId", types: { $addToSet: "$documentType" } } }
       ]),
@@ -171,6 +174,7 @@ const getDashboard = async (req, res) => {
     let verified = 0;
     const verifiedDocTypes = new Map(verifiedDocs.map((row) => [String(row._id), new Set(row.types)]));
     const bankStatus = new Map(bankAccounts.map((account) => [String(account.partnerId), account.verification?.status]));
+    const pendingBankUpdates = new Set(bankAccounts.filter(account => account.pendingChange).map(account => String(account.partnerId)));
     let kycPending = 0;
     let bankPending = 0;
 
@@ -185,7 +189,7 @@ const getDashboard = async (req, res) => {
       if (["rejected", "inactive"].includes(partner.status)) continue;
       const have = verifiedDocTypes.get(String(partner._id)) || new Set();
       if (!getRequiredDocumentTypes(partner.partnerType).every((type) => have.has(type))) kycPending += 1;
-      if (bankStatus.get(String(partner._id)) !== "verified" || bankAccounts.some(account => String(account.partnerId) === String(partner._id) && account.pendingChange)) bankPending += 1;
+      if (bankStatus.get(String(partner._id)) !== "verified" || pendingBankUpdates.has(String(partner._id))) bankPending += 1;
     }
 
     return res.json({

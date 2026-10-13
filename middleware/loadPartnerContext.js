@@ -1,5 +1,5 @@
 const { PartnerUser, Partner } = require("../models/Index");
-const { isPartnerFullyVerified, isProfileComplete } = require("../utils/partnerVerification");
+const { getPartnerVerificationRecords, computeKycStatus, isProfileComplete } = require("../utils/partnerVerification");
 
 /**
  * Runs after partnerAuthMiddleware. Loads fresh PartnerUser + Partner
@@ -43,7 +43,9 @@ const loadPartnerContext = async (req, res, next) => {
 
     // An old Active flag cannot bypass missing/replaced KYC or bank review.
     // Check the latest required documents, rather than historical approvals.
-    if (partner.status === "active" && (!isProfileComplete(partner) || !(await isPartnerFullyVerified(partner._id, partner.partnerType)))) {
+    if (partner.status === "active") req.verificationRecords = await getPartnerVerificationRecords(partner._id, partner.partnerType);
+    const fullyVerified = req.verificationRecords && computeKycStatus(req.verificationRecords.documents, partner.partnerType) === "verified" && req.verificationRecords.bank?.verification?.status === "verified";
+    if (partner.status === "active" && (!isProfileComplete(partner) || !fullyVerified)) {
       const updated = await Partner.findOneAndUpdate(
         { _id: partner._id, status: "active" },
         { $set: { status: "pending_verification", "verification.overallStatus": "pending" }, $unset: { "verification.verifiedAt": 1, "verification.verifiedBy": 1 } },
