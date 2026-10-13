@@ -56,6 +56,7 @@ router.post("/allocations/:id/reactivate", requirePermission("reseller:allocatio
 router.post("/allocations/:id/cancel", requirePermission("reseller:allocation:manage"), cancelAllocation);
 
 // Billing
+router.get("/readiness", require("../controller/partnerResellerReadinessController"));
 router.get("/invoices", requirePermission("reseller:billing:view"), listInvoices);
 router.get("/invoices/current-due", requirePermission("reseller:billing:view"), getCurrentDueEstimate);
 router.get("/invoices/:id", requirePermission("reseller:billing:view"), getInvoice);

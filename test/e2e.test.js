@@ -1831,6 +1831,9 @@ test("partner teammates: role permissions, dashboard privacy and current access 
       if (!can("profile:update")) expectStatus(await api().patch("/api/partner/profile").set(as(token)).send({ city: "Unauthorized" }), 403, "profile mutation denied");
       if (type === "vendor" && !can("customers:manage")) expectStatus(await api().post("/api/partner/customers").set(as(token)).send({}), 403, "customer mutation denied");
       if (type === "reseller") {
+        const readiness = expectStatus(await api().get("/api/partner/reseller/readiness").set(as(token)), can("reseller:customers:manage") || can("reseller:license:purchase") ? 200 : 403, "setup readiness access");
+        if (readiness.success) assert.deepEqual(Object.keys(readiness.data), ["status"], "readiness must not expose payment amounts");
+        expectStatus(await api().get("/api/partner/reseller/prepayment").set(as(token)), can("reseller:billing:view") ? 200 : 403, "financial prepayment access stays restricted");
         expectStatus(await api().get("/api/partner/reseller/invoices").set(as(token)), can("reseller:billing:view") ? 200 : 403, "billing access");
         if (!can("reseller:billing:pay")) expectStatus(await api().post(`/api/partner/reseller/invoices/${user._id}/pay`).set(as(token)).send({}), 403, "payment denied");
         if (!can("reseller:license:purchase")) expectStatus(await api().post("/api/partner/reseller/license-orders").set(as(token)).send({}), 403, "licence purchase denied");
