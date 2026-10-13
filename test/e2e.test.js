@@ -288,6 +288,11 @@ test("team: an owner invites a teammate, who can sign in; an admin can block the
   const resetRecord = await require("../models/Index").PartnerUser.findById(member._id).select("+auth.resetTokenHash");
   assert.equal(resetRecord.auth.resetTokenHash, require("crypto").createHash("sha256").update(newLink).digest("hex"));
   assert.notEqual(resetRecord.auth.resetTokenHash, require("crypto").createHash("sha256").update(oldLink).digest("hex"), "old activation link invalidated");
+  await require("../models/Index").PartnerUser.updateOne({ _id: member._id }, { $set: { status: "active", "auth.passwordHash": "existing-password-hash", "auth.invitationSentAt": new Date(Date.now() - 61000) } });
+  expectStatus(await api().post(`/api/partner/team/${member._id}/resend-activation`).set(as(owner.token)), 200, "active teammate receives password reset link");
+  const activeMember = await require("../models/Index").PartnerUser.findById(member._id).select("+auth.passwordHash");
+  assert.equal(activeMember.status, "active");
+  assert.equal(activeMember.auth.passwordHash, "existing-password-hash", "sending a link does not replace the current password");
   expectStatus(await api().post(`/api/partner/team/${team.data.find(m => m.role === "owner")._id}/resend-activation`).set(as(owner.token)), 400, "owner cannot use team activation resend");
   const blocked = expectStatus(await api().patch(`/api/admin/partners/${owner.id}/team/${member._id}`).set(admin()).send({ status: "blocked" }), 200, "admin block");
   assert.equal(blocked.data.status, "blocked");
