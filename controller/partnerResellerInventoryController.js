@@ -21,9 +21,11 @@ const listTransactions = asyncHandler(async (req, res) => {
 
   const [transactions, total] = await Promise.all([
     LicenseTransaction.find({ partnerId: req.partner._id })
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .skip((page - 1) * limit)
-      .limit(limit),
+      .limit(limit)
+      .populate({ path: "customerId", select: "businessDetails.companyName", match: { partnerId: req.partner._id } })
+      .lean(),
     LicenseTransaction.countDocuments({ partnerId: req.partner._id })
   ]);
 
