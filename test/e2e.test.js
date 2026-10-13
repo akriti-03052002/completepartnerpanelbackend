@@ -278,8 +278,20 @@ test("team: an owner invites a teammate, who can sign in; an admin can block the
   assert.equal(team.data.length, 2);
 
   const member = team.data.find((m) => m.email === "sales@example.com");
+  const oldLink = lastMailTo(member.email).text.match(/reset-password\/([a-f0-9]+)/)[1];
+  const foreignMember = await require("../models/Index").PartnerUser.findOne({ partnerId: state.partners.vendor.id });
+  expectStatus(await api().post(`/api/partner/team/${foreignMember._id}/resend-activation`).set(as(owner.token)), 404, "foreign team invite cannot be resent");
+  expectStatus(await api().post(`/api/partner/team/${member._id}/resend-activation`).set(as(owner.token)), 200, "resend activation link");
+  const newLink = lastMailTo(member.email).text.match(/reset-password\/([a-f0-9]+)/)[1];
+  assert.notEqual(newLink, oldLink);
+  expectStatus(await api().post(`/api/partner/team/${member._id}/resend-activation`).set(as(owner.token)), 429, "resend cooldown");
+  const resetRecord = await require("../models/Index").PartnerUser.findById(member._id).select("+auth.resetTokenHash");
+  assert.equal(resetRecord.auth.resetTokenHash, require("crypto").createHash("sha256").update(newLink).digest("hex"));
+  assert.notEqual(resetRecord.auth.resetTokenHash, require("crypto").createHash("sha256").update(oldLink).digest("hex"), "old activation link invalidated");
+  expectStatus(await api().post(`/api/partner/team/${team.data.find(m => m.role === "owner")._id}/resend-activation`).set(as(owner.token)), 400, "owner cannot use team activation resend");
   const blocked = expectStatus(await api().patch(`/api/admin/partners/${owner.id}/team/${member._id}`).set(admin()).send({ status: "blocked" }), 200, "admin block");
   assert.equal(blocked.data.status, "blocked");
+  expectStatus(await api().post(`/api/partner/team/${member._id}/resend-activation`).set(as(owner.token)), 400, "blocked member cannot receive an activation link");
   const ownerBlock = await api().patch(`/api/admin/partners/${owner.id}/team/${team.data.find((m) => m.role === "owner")._id}`).set(admin()).send({ status: "blocked" });
   assert.equal(ownerBlock.status, 400);
   assert.ok(invited);

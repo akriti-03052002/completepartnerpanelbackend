@@ -166,4 +166,35 @@ const updateTeamMember = async (req, res) => {
   }
 };
 
-module.exports = { listTeam, inviteTeamMember, updateTeamMember };
+const resendTeamActivation = async (req, res) => {
+  try {
+    const member = await PartnerUser.findOne({ _id: req.params.id, partnerId: req.partner._id }).select("+auth.passwordHash +auth.resetTokenHash +auth.resetTokenExpires");
+    if (!member) return res.status(404).json({ success: false, message: "Team member not found." });
+    if (member.role === "owner" || member.status !== "invited" || member.auth.passwordHash) {
+      return res.status(400).json({ success: false, message: "Activation links are only for invited members who have not set a password. Activated members can use Forgot password." });
+    }
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const sentAt = new Date();
+    const claimed = await PartnerUser.findOneAndUpdate({
+      _id: member._id, partnerId: req.partner._id, status: "invited", "auth.passwordHash": { $exists: false },
+      $or: [{ "auth.invitationSentAt": { $exists: false } }, { "auth.invitationSentAt": { $lte: new Date(Date.now() - 60000) } }]
+    }, { $set: { "auth.resetTokenHash": hash, "auth.resetTokenExpires": new Date(Date.now() + 7 * 86400000), "auth.invitationSentAt": sentAt } }, { returnDocument: "after" });
+    if (!claimed) return res.status(429).json({ success: false, message: "Please wait one minute before resending the activation link." });
+    try {
+      const link = `${process.env.CLIENT_URL || "http://localhost:5173"}/partner/reset-password/${rawToken}`;
+      await sendMail({ to: member.email, subject: "Set your password for SpotX Partner Panel", text: `Set your password to activate your team account: ${link}\n\nThis link expires in 7 days and replaces the previous link. Check your spam folder if you cannot find this email.` });
+    } catch (error) {
+      const restore = { $unset: { "auth.invitationSentAt": 1 } };
+      restore.$set = { "auth.resetTokenHash": member.auth.resetTokenHash, "auth.resetTokenExpires": member.auth.resetTokenExpires };
+      await PartnerUser.updateOne({ _id: member._id, "auth.resetTokenHash": hash }, restore);
+      throw error;
+    }
+    return res.json({ success: true, message: `Activation link sent to ${member.email}. Ask them to check their inbox and spam folder.` });
+  } catch (error) {
+    console.error("resendTeamActivation error:", error.message);
+    return res.status(500).json({ success: false, message: "Could not send the activation email. Please try again." });
+  }
+};
+
+module.exports = { listTeam, inviteTeamMember, updateTeamMember, resendTeamActivation };

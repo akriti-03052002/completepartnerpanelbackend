@@ -66,6 +66,7 @@ const PartnerUserSchema = new Schema(
       lastLoginAt: {
         type: Date
       },
+      invitationSentAt: { type: Date },
 
       resetTokenHash: {
         type: String,
