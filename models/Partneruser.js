@@ -34,7 +34,7 @@ const PartnerUserSchema = new Schema(
 
     role: {
       type: String,
-      enum: ["owner", "admin", "sales", "operations", "finance", "viewer"],
+      enum: ["owner", "admin", "sales", "finance", "viewer"],
       default: "viewer"
     },
 

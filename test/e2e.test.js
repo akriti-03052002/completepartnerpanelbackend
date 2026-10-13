@@ -1799,7 +1799,7 @@ test("partner teammates: role permissions, dashboard privacy and current access 
   const password = "RoleTesting123!";
   const passwordHash = await require("bcryptjs").hash(password, 4);
   for (const type of ["affiliate", "vendor", "reseller"]) {
-    for (const role of ["admin", "sales", "operations", "finance", "viewer"]) {
+    for (const role of ["admin", "sales", "finance", "viewer"]) {
       const email = `${type}-${role}-permissions@example.com`;
       const user = await PartnerUser.create({ partnerId: state.partners[type].id, name: `${role} teammate`, email, role, permissions: ROLE_PERMISSIONS[role], status: "active", auth: { passwordHash } });
       const signedIn = expectStatus(await api().post("/api/partner/auth/login").send({ email, password }), 200, `${type} ${role} login`);

@@ -515,7 +515,7 @@ const updatePartnerProfile = async (req, res) => {
   }
 };
 
-const TEAM_ROLES = ["admin", "sales", "operations", "finance", "viewer"];
+const TEAM_ROLES = ["admin", "sales", "finance", "viewer"];
 
 // Change a team member's role, or block / unblock their login. The owner
 // account can't be changed here, so a partner is never left without one.

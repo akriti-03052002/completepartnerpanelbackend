@@ -92,17 +92,6 @@ const ROLE_PERMISSIONS = {
     "reseller:allocation:manage"
   ],
 
-  operations: [
-    "dashboard:view",
-    "profile:view",
-    "customers:view",
-    "customers:manage",
-    "notifications:view",
-    "reseller:inventory:view",
-    "reseller:customers:manage",
-    "reseller:allocation:manage"
-  ],
-
   finance: [
     "dashboard:view",
     "profile:view",
